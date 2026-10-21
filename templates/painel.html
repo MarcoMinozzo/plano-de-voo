@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}Painel{% endblock %}
+{% block corpo %}
+<h1>Seus planos</h1>
+<p><a href="{{ url_for('novo_plano') }}">Novo plano</a></p>
+<table>
+    <thead><tr><th>Origem</th><th>Destino</th><th>Partida</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for plano in planos %}
+        <tr>
+            <td><a href="{{ url_for('ver_plano', plano_id=plano.id) }}">{{ plano.origem_icao }}</a></td>
+            <td>{{ plano.destino_icao }}</td>
+            <td>{{ plano.hora_partida }}</td>
+            <td>{{ plano.estado }}</td>
+        </tr>
+    {% else %}
+        <tr><td colspan="4">Nenhum plano ainda.</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

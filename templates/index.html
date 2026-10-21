@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cessna 140 — Calculadora de Voo</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, sans-serif; }
+
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh; padding: 24px;
+        }
+
+        .container {
+            max-width: 1200px; margin: 0 auto; background: #fff;
+            border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: #0d1b2a; color: #fff; padding: 24px 32px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        header .left { display: flex; align-items: center; gap: 16px; }
+        header .icon { font-size: 32px; }
+        header h1 { font-size: 22px; font-weight: 600; }
+        header p { font-size: 13px; color: #a0b0c0; margin-top: 4px; }
+
+        .btn-pdf {
+            background: #e67e22; color: #fff; border: none;
+            padding: 10px 18px; border-radius: 8px; cursor: pointer;
+            font-size: 14px; font-weight: 600; transition: background 0.2s;
+        }
+        .btn-pdf:hover { background: #cf6d15; }
+        .btn-pdf:disabled { background: #a0aec0; cursor: not-allowed; }
+
+        .tabs {
+            display: flex; background: #f4f7fb; border-bottom: 2px solid #e0e6ed;
+            overflow-x: auto;
+        }
+        .tab {
+            padding: 14px 22px; cursor: pointer; font-size: 14px;
+            font-weight: 600; color: #4a5568; border-bottom: 3px solid transparent;
+            transition: all 0.2s; user-select: none; white-space: nowrap;
+        }
+        .tab:hover { background: #e8eef7; }
+        .tab.active { color: #2a5298; border-bottom-color: #2a5298; background: #fff; }
+
+        .panel { display: none; padding: 28px 32px; }
+        .panel.active { display: block; }
+
+        h2 {
+            font-size: 15px; color: #0d1b2a; margin-bottom: 16px;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        @media (max-width: 820px) { .grid-2 { grid-template-columns: 1fr; } }
+
+        .form-group { margin-bottom: 14px; }
+        label { display: block; font-size: 13px; color: #4a5568;
+                margin-bottom: 5px; font-weight: 500; }
+        label .hint { color: #a0aec0; font-weight: 400; }
+        input, select {
+            width: 100%; padding: 9px 13px; border: 2px solid #e0e6ed;
+            border-radius: 8px; font-size: 14px; outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            background: #fff;
+        }
+        input:focus, select:focus {
+            border-color: #2a5298;
+            box-shadow: 0 0 0 3px rgba(42,82,152,0.15);
+        }
+
+        button.primary {
+            width: 100%; padding: 13px; background: #2a5298; color: #fff;
+            border: none; border-radius: 8px; font-size: 15px;
+            font-weight: 600; cursor: pointer; margin-top: 10px;
+            transition: background 0.2s, transform 0.1s;
+        }
+        button.primary:hover { background: #1e3c72; }
+        button.primary:active { transform: scale(0.98); }
+        button.primary:disabled { background: #a0aec0; cursor: not-allowed; }
+
+        .result-item {
+            display: flex; justify-content: space-between; padding: 10px 0;
+            border-bottom: 1px solid #e0e6ed; font-size: 14px;
+        }
+        .result-item:last-child { border-bottom: none; }
+        .result-item .label { color: #4a5568; }
+        .result-item .value { font-weight: 700; color: #0d1b2a; }
+        .result-item.highlight .value { color: #2a5298; font-size: 17px; }
+
+        .status-box {
+            padding: 14px; border-radius: 10px; margin-top: 16px;
+            font-size: 14px; font-weight: 600; text-align: center;
+        }
+        .status-ok    { background: #e6f7ee; color: #1a7f4b; border: 2px solid #1a7f4b; }
+        .status-error { background: #fdecea; color: #c0392b; border: 2px solid #c0392b; }
+        .status-warn  { background: #fff4e6; color: #b86b00; border: 2px solid #b86b00; }
+
+        .alertas {
+            margin-top: 12px; padding: 12px; border-radius: 8px;
+            background: #fff4e6; border-left: 4px solid #b86b00;
+            font-size: 13px; color: #7a4a00;
+        }
+        .alertas ul { margin-left: 20px; margin-top: 6px; }
+
+        .error-msg {
+            color: #c0392b; font-size: 14px; padding: 12px;
+            background: #fdecea; border-radius: 8px;
+        }
+
+        .placeholder {
+            color: #a0aec0; text-align: center; padding: 40px 20px; font-size: 14px;
+        }
+        .placeholder .big-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e0e6ed; }
+        th { background: #f4f7fb; font-weight: 600; color: #4a5568; }
+        tr:hover td { background: #f9fbfd; }
+
+        .btn-small {
+            padding: 5px 10px; border: none; border-radius: 6px;
+            font-size: 12px; cursor: pointer; font-weight: 600;
+        }
+        .btn-danger { background: #fdecea; color: #c0392b; }
+        .btn-danger:hover { background: #f8d7da; }
+        .btn-clear { background: #e8eef7; color: #2a5298; margin-bottom: 12px; }
+        .btn-clear:hover { background: #d0dff0; }
+
+        #map { height: 640px; border-radius: 10px; overflow: hidden; border: 1px solid #d0d7e2; }
+
+        .carta-toolbar {
+            display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+            margin-bottom: 12px;
+        }
+        .carta-btn {
+            background: #e8eef7; color: #2a5298; border: 2px solid transparent;
+            padding: 8px 14px; border-radius: 8px; cursor: pointer;
+            font-size: 13px; font-weight: 600;
+        }
+        .carta-btn:hover { background: #d0dff0; }
+        .carta-btn.active { background: #0d1b2a; color: #fff; border-color: #0d1b2a; }
+
+        .carta-icone { background: none !important; border: none !important; }
+        .carta-pin {
+            background: rgba(255,255,255,0.94); border: 2px solid #2a5298;
+            color: #0d1b2a; font-size: 11px; font-weight: 700;
+            padding: 2px 6px; border-radius: 10px; white-space: nowrap;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.25); text-align: center;
+        }
+        .carta-leg {
+            background: rgba(13,27,42,0.9); color: #fff; font-size: 11px;
+            font-weight: 700; padding: 3px 7px; border-radius: 8px;
+            white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        .enquadrar-btn.active { background: #1a7f4b; color: #fff; border-color: #1a7f4b; }
+        .proc-card { background: #f9fbfd; border: 2px solid #e0e6ed; border-radius: 12px; padding: 14px 16px; }
+        .proc-card h3 { font-size: 14px; color: #0d1b2a; margin-bottom: 6px; }
+        .proc-card ol { margin: 8px 0 0 18px; color: #2d3748; font-size: 13px; }
+        .proc-card li { margin-bottom: 4px; }
+        .proc-card .pista { font-size: 12px; color: #4a5568; }
+
+        .chart-wrapper {
+            max-width: 600px; margin: 0 auto; background: #fff;
+            padding: 16px; border-radius: 12px;
+        }
+
+        .divider { height: 1px; background: #e0e6ed; margin: 20px 0; }
+        .note { font-size: 12px; color: #a0aec0; margin-top: 8px; font-style: italic; }
+
+        /* Comparação de rotas */
+        .rota-card {
+            background: #f9fbfd; border: 2px solid #e0e6ed;
+            border-radius: 12px; padding: 16px; margin-bottom: 12px;
+            transition: border-color 0.2s, transform 0.2s;
+            cursor: pointer;
+        }
+        .rota-card:hover { border-color: #2a5298; transform: translateY(-2px); }
+        .rota-card.best { border-color: #1a7f4b; background: #f0faf5; }
+        .rota-card h3 { font-size: 14px; color: #0d1b2a; margin-bottom: 6px; }
+        .rota-card .desc { font-size: 12px; color: #718096; margin-bottom: 10px; }
+        .rota-card .grid-mini {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+            font-size: 12px;
+        }
+        .rota-card .grid-mini div { text-align: center; }
+        .rota-card .grid-mini .v { font-weight: 700; color: #2a5298; font-size: 14px; }
+        .rota-card .grid-mini .l { color: #718096; }
+        .rota-card .badge-best {
+            display: inline-block; background: #1a7f4b; color: #fff;
+            padding: 2px 8px; border-radius: 10px; font-size: 10px;
+            font-weight: 700; margin-left: 6px;
+        }
+
+        /* METAR cards */
+        .meteo-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+        }
+        .meteo-card {
+            background: #f9fbfd; border: 2px solid #e0e6ed;
+            border-radius: 12px; padding: 16px; overflow: hidden;
+        }
+        .meteo-card h3 {
+            font-size: 14px; color: #0d1b2a; margin-bottom: 4px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .meteo-card .icao {
+            background: #2a5298; color: #fff; padding: 3px 8px;
+            border-radius: 6px; font-size: 11px; font-weight: 700;
+        }
+        .meteo-card .raw {
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px; background: #0d1b2a; color: #7fe0a0;
+            padding: 10px; border-radius: 6px; margin-top: 8px;
+            white-space: pre-wrap; word-break: break-word;
+            line-height: 1.5;
+        }
+        .meteo-card .section-label {
+            font-size: 11px; color: #4a5568; font-weight: 700;
+            text-transform: uppercase; margin-top: 10px; margin-bottom: 4px;
+        }
+        .meteo-loading { text-align: center; padding: 40px; color: #a0aec0; }
+        .btn-refresh {
+            background: #e8eef7; color: #2a5298; border: none;
+            padding: 8px 16px; border-radius: 8px; cursor: pointer;
+            font-size: 13px; font-weight: 600; margin-bottom: 16px;
+        }
+        .btn-refresh:hover { background: #d0dff0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="left">
+                <div class="icon">✈️</div>
+                <div>
+                    <h1>Cessna 140 — Calculadora de Voo</h1>
+                    <p>Jundiaí (SBJD) → Araçatuba (SBAU)</p>
+                </div>
+            </div>
+            <button class="btn-pdf" id="btn-pdf" onclick="exportarPDF()" disabled>📄 Exportar PDF</button>
+        </header>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="calc">📊 Cálculo</div>
+            <div class="tab" data-tab="rotas">🛣️ Comparar Rotas</div>
+            <div class="tab" data-tab="grafico">📈 Fases de Voo</div>
+            <div class="tab" data-tab="peso">⚖️ Peso</div>
+            <div class="tab" data-tab="mapa">🗺️ Mapa</div>
+            <div class="tab" data-tab="meteo">🌤️ METAR/TAF</div>
+            <div class="tab" data-tab="hist">📜 Histórico</div>
+        </div>
+
+        <!-- ABA CÁLCULO -->
+        <div class="panel active" id="panel-calc">
+            <div class="grid-2">
+                <div>
+                    <h2>Dados de Entrada</h2>
+
+                    <div class="form-group">
+                        <label>Rota</label>
+                        <select id="rota_id"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Distância da rota base (km)</label>
+                        <input type="number" id="distancia_km" value="424" step="0.1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Consumo de combustível (gal/h)</label>
+                        <input type="number" id="consumo_gph" value="5.0" step="0.1" min="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label>Velocidade de cruzeiro (nós)</label>
+                        <input type="number" id="velocidade_nos" value="90" step="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Capacidade útil do tanque (gal)</label>
+                        <input type="number" id="capacidade_tanque_gal" value="22" step="0.5" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Reserva de combustível (h)</label>
+                        <input type="number" id="reserva_horas" value="1.0" step="0.25" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Vento de proa (+) / cauda (−) em nós</label>
+                        <input type="number" id="vento_nos" value="0" step="1">
+                    </div>
+
+                    <h2 style="margin-top:20px;">Peso & Combustível a Bordo</h2>
+                    <div class="form-group">
+                        <label>Peso do piloto (kg)</label>
+                        <input type="number" id="peso_piloto" value="80" step="1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Peso do passageiro (kg)</label>
+                        <input type="number" id="peso_passageiro" value="70" step="1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Peso da bagagem (kg)</label>
+                        <input type="number" id="peso_bagagem" value="5" step="1" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>Combustível a bordo (gal)</label>
+                        <input type="number" id="combustivel_gal" value="22" step="0.5" min="0">
+                    </div>
+
+                    <button class="primary" id="btn-calcular" onclick="calcular()">Calcular</button>
+                </div>
+
+                <div>
+                    <h2>Resultado</h2>
+                    <div id="resultado">
+                        <div class="placeholder">
+                            <div class="big-icon">📊</div>
+                            <p>Preencha os dados e clique em <strong>Calcular</strong>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA COMPARAR ROTAS -->
+        <div class="panel" id="panel-rotas">
+            <h2>Comparação entre Rotas Alternativas</h2>
+            <p class="note">Clique em uma rota para aplicá-la ao cálculo principal.</p>
+            <div id="rotas-container" style="margin-top:16px;">
+                <div class="placeholder">
+                    <div class="big-icon">🛣️</div>
+                    <p>Execute um cálculo primeiro para comparar as rotas.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA GRÁFICO -->
+        <div class="panel" id="panel-grafico">
+            <h2>Consumo por Fase de Voo</h2>
+            <div class="chart-wrapper"><canvas id="graficoFases"></canvas></div>
+            <p class="note">Estimativa baseada na distribuição típica de tempo por fase e fatores relativos ao cruzeiro.</p>
+        </div>
+
+        <!-- ABA PESO -->
+        <div class="panel" id="panel-peso">
+            <h2>Peso e Balanceamento</h2>
+            <div id="peso-resultado">
+                <div class="placeholder">
+                    <div class="big-icon">⚖️</div>
+                    <p>Execute um cálculo primeiro.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA MAPA -->
+        <div class="panel" id="panel-mapa">
+            <h2>Carta aeronáutica — planejamento</h2>
+            <div class="carta-toolbar">
+                <button class="carta-btn active" data-carta="wac" onclick="definirBaseCarta('wac')">Carta visual (WAC)</button>
+                <button class="carta-btn" data-carta="enrc" onclick="definirBaseCarta('enrc')">Carta de rota (ENRC L5)</button>
+                <button class="carta-btn" data-carta="ruas" onclick="definirBaseCarta('ruas')">Mapa de ruas</button>
+            </div>
+            <div class="carta-toolbar">
+                <button class="carta-btn enquadrar-btn active" data-enquadrar="rota" onclick="enquadrarMapa('rota')">Rota completa</button>
+                <button class="carta-btn enquadrar-btn" data-enquadrar="decolagem" onclick="enquadrarMapa('decolagem')">Decolagem</button>
+                <button class="carta-btn enquadrar-btn" data-enquadrar="pouso" onclick="enquadrarMapa('pouso')">Pouso</button>
+            </div>
+            <div id="map"></div>
+            <div id="mapa-procedimentos" style="margin-top:16px;"></div>
+            <div id="mapa-pernas"></div>
+            <p class="note">A rota entra pela final e sai na proa da pista, nas cabeceiras publicadas pelo DECEA. O circuito é o tráfego visual padrão (mão esquerda); em SBAU e SBBU o lado do circuito está publicado. Não substitui a VAC nem a carta de aeródromo do AISWEB. Emenda de referência: 16/26.</p>
+        </div>
+
+        <!-- ABA METAR/TAF -->
+        <div class="panel" id="panel-meteo">
+            <h2>Condições Meteorológicas</h2>
+            <button class="btn-refresh" onclick="carregarMeteo()">🔄 Atualizar</button>
+            <div id="meteo-container">
+                <div class="meteo-loading">Clique em "Atualizar" para buscar METAR e TAF.</div>
+            </div>
+        </div>
+
+        <!-- ABA HISTÓRICO -->
+        <div class="panel" id="panel-hist">
+            <h2>Histórico de Cálculos</h2>
+            <button class="btn-small btn-clear" onclick="limparHistorico()">🗑️ Limpar Todo o Histórico</button>
+            <div id="historico-container">
+                <div class="placeholder">Carregando...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // NAVEGAÇÃO
+        // ============================================================
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+
+                if (tab.dataset.tab === 'mapa') setTimeout(abrirMapa, 80);
+                if (tab.dataset.tab === 'hist') carregarHistorico();
+                if (tab.dataset.tab === 'meteo' && !meteoCarregado) carregarMeteo();
+            });
+        });
+
+        // ============================================================
+        // ESTADO GLOBAL
+        // ============================================================
+        let ultimoResultado = null;
+        let ultimoDados = null;
+        let rotasDisponiveis = {};
+        let meteoCarregado = false;
+        let mapaInstancia = null;
+        let mapaCamadas = [];
+        let graficoInstancia = null;
+
+        // Carrega rotas do backend
+        async function carregarRotas() {
+            const r = await fetch('/rotas');
+            rotasDisponiveis = await r.json();
+            const select = document.getElementById('rota_id');
+            select.innerHTML = '';
+            for (const [id, rota] of Object.entries(rotasDisponiveis)) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = rota.nome;
+                select.appendChild(opt);
+            }
+            select.value = 'direta';
+            select.addEventListener('change', () => {
+                const rota = rotasDisponiveis[select.value];
+                if (rota) atualizarMapa(rota);
+            });
+            if (mapaInstancia) atualizarMapa(rotasDisponiveis.direta);
+        }
+
+        // ============================================================
+        // CÁLCULO
+        // ============================================================
+        async function calcular() {
+            const btn = document.getElementById('btn-calcular');
+            const resultadoDiv = document.getElementById('resultado');
+
+            const dados = {
+                rota_id: document.getElementById('rota_id').value,
+                distancia_km: document.getElementById('distancia_km').value,
+                consumo_gph: document.getElementById('consumo_gph').value,
+                velocidade_nos: document.getElementById('velocidade_nos').value,
+                capacidade_tanque_gal: document.getElementById('capacidade_tanque_gal').value,
+                reserva_horas: document.getElementById('reserva_horas').value,
+                vento_nos: document.getElementById('vento_nos').value,
+                peso_piloto: document.getElementById('peso_piloto').value,
+                peso_passageiro: document.getElementById('peso_passageiro').value,
+                peso_bagagem: document.getElementById('peso_bagagem').value,
+                combustivel_gal: document.getElementById('combustivel_gal').value,
+            };
+
+            for (const [key, value] of Object.entries(dados)) {
+                if (key === 'rota_id') continue;
+                if (value === '' || isNaN(parseFloat(value))) {
+                    resultadoDiv.innerHTML = `<div class="error-msg">Preencha todos os campos corretamente.</div>`;
+                    return;
+                }
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Calculando...';
+
+            try {
+                const resposta = await fetch('/calcular', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dados)
+                });
+                const data = await resposta.json();
+
+                if (!resposta.ok || data.erro) {
+                    resultadoDiv.innerHTML = `<div class="error-msg">${data.erro || 'Erro ao calcular.'}</div>`;
+                    return;
+                }
+
+                ultimoResultado = data;
+                ultimoDados = dados;
+                document.getElementById('btn-pdf').disabled = false;
+
+                renderizarResultado(data);
+                renderizarPeso(data.peso_balanceamento);
+                renderizarGrafico(data.fases);
+                atualizarMapa(data.rota);
+
+                // Comparação de rotas
+                compararRotas();
+            } catch (err) {
+                resultadoDiv.innerHTML = `<div class="error-msg">Erro de conexão.</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Calcular';
+            }
+        }
+
+        function renderizarResultado(d) {
+            const resultadoDiv = document.getElementById('resultado');
+
+            let statusClass, statusTexto;
+            if (d.status === 'ok') {
+                statusClass = 'status-ok';
+                statusTexto = `✅ Combustível suficiente — sobra de ${d.margem_seguranca} gal`;
+            } else {
+                statusClass = 'status-error';
+                statusTexto = `❌ Combustível insuficiente — faltam ${Math.abs(d.margem_seguranca)} gal`;
+            }
+
+            resultadoDiv.innerHTML = `
+                <div class="result-item">
+                    <span class="label">Rota</span>
+                    <span class="value">${d.rota_nome}</span>
+                </div>
+                <div class="result-item">
+                    <span class="label">Distância</span>
+                    <span class="value">${d.distancia_km} km (${d.distancia_nm} NM)</span>
+                </div>
+                <div class="result-item">
+                    <span class="label">Velocidade efetiva</span>
+                    <span class="value">${d.velocidade_efetiva} kt</span>
+                </div>
+                <div class="result-item highlight">
+                    <span class="label">Tempo de voo</span>
+                    <span class="value">${d.tempo_voo_formatado}</span>
+                </div>
+                <div class="result-item">
+                    <span class="label">Combustível necessário</span>
+                    <span class="value">${d.combustivel_necessario_gal} gal</span>
+                </div>
+                <div class="result-item highlight">
+                    <span class="label">Combustível c/ reserva</span>
+                    <span class="value">${d.combustivel_com_reserva_gal} gal</span>
+                </div>
+                <div class="result-item">
+                    <span class="label">Combustível na chegada</span>
+                    <span class="value">${d.combustivel_chegada_gal} gal</span>
+                </div>
+                <div class="result-item">
+                    <span class="label">Capacidade do tanque</span>
+                    <span class="value">${d.capacidade_tanque_gal} gal</span>
+                </div>
+                <div class="divider"></div>
+                <div class="result-item">
+                    <span class="label">Autonomia total</span>
+                    <span class="value">${d.autonomia_horas} h (${d.autonomia_km} km)</span>
+                </div>
+                <div class="status-box ${statusClass}">${statusTexto}</div>
+            `;
+        }
+
+        function renderizarPeso(p) {
+            const div = document.getElementById('peso-resultado');
+            let alertasHtml = '';
+            if (p.alertas && p.alertas.length > 0) {
+                alertasHtml = `<div class="alertas"><strong>⚠️ Atenção:</strong>
+                    <ul>${p.alertas.map(a => `<li>${a}</li>`).join('')}</ul></div>`;
+            }
+            const statusClass = p.dentro_do_limite ? 'status-ok' : 'status-error';
+            const statusTexto = p.dentro_do_limite
+                ? `✅ Peso dentro do limite — margem de ${p.margem_peso_kg} kg`
+                : `❌ Peso acima do MTOW!`;
+
+            div.innerHTML = `
+                <div class="grid-2">
+                    <div>
+                        <h2>Composição do Peso</h2>
+                        <div class="result-item"><span class="label">Peso vazio (C140)</span><span class="value">${p.peso_vazio_kg} kg</span></div>
+                        <div class="result-item"><span class="label">Piloto</span><span class="value">${p.peso_piloto_kg} kg</span></div>
+                        <div class="result-item"><span class="label">Passageiro</span><span class="value">${p.peso_passageiro_kg} kg</span></div>
+                        <div class="result-item"><span class="label">Bagagem</span><span class="value">${p.peso_bagagem_kg} kg</span></div>
+                        <div class="result-item"><span class="label">Combustível</span><span class="value">${p.peso_combustivel_kg} kg</span></div>
+                        <div class="divider"></div>
+                        <div class="result-item highlight"><span class="label">PESO TOTAL</span><span class="value">${p.peso_total_kg} kg</span></div>
+                        <div class="result-item"><span class="label">MTOW</span><span class="value">${p.peso_max_kg} kg</span></div>
+                    </div>
+                    <div>
+                        <h2>Verificação</h2>
+                        <div class="status-box ${statusClass}">${statusTexto}</div>
+                        ${alertasHtml}
+                        <p class="note">Valores aproximados para o Cessna 140. Consulte o POH.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderizarGrafico(fases) {
+            const ctx = document.getElementById('graficoFases').getContext('2d');
+            if (graficoInstancia) graficoInstancia.destroy();
+
+            const cores = {
+                'Decolagem': '#e74c3c', 'Subida': '#e67e22', 'Cruzeiro': '#2a5298',
+                'Descida': '#27ae60', 'Reserva': '#95a5a6',
+            };
+
+            graficoInstancia = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: fases.map(f => f.fase),
+                    datasets: [{
+                        label: 'Consumo (galões)',
+                        data: fases.map(f => f.consumo_gal),
+                        backgroundColor: fases.map(f => cores[f.fase] || '#2a5298'),
+                        borderRadius: 8,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: (ctx) => `Tempo: ${fases[ctx.dataIndex].tempo_formatado}`
+                            }
+                        }
+                    },
+                    scales: { y: { beginAtZero: true, title: { display: true, text: 'Galões' } } }
+                }
+            });
+        }
+
+        // ============================================================
+        // COMPARAÇÃO DE ROTAS
+        // ============================================================
+        async function compararRotas() {
+            if (!ultimoDados) return;
+            const container = document.getElementById('rotas-container');
+            try {
+                const r = await fetch('/comparar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(ultimoDados)
+                });
+                const rotas = await r.json();
+
+                if (rotas.erro) {
+                    container.innerHTML = `<div class="error-msg">${rotas.erro}</div>`;
+                    return;
+                }
+
+                // Encontra a melhor rota (menor consumo com reserva, dentro do limite)
+                const validas = rotas.filter(x => x.status === 'ok');
+                const melhor = validas.length > 0
+                    ? validas.reduce((a, b) => a.combustivel_com_reserva_gal < b.combustivel_com_reserva_gal ? a : b)
+                    : null;
+
+                let html = '';
+                rotas.forEach(rota => {
+                    const isBest = melhor && rota.rota_id === melhor.rota_id;
+                    const statusIcon = rota.status === 'ok' ? '✅' : '❌';
+                    html += `
+                        <div class="rota-card ${isBest ? 'best' : ''}" onclick="selecionarRota('${rota.rota_id}')">
+                            <h3>${rota.rota_nome} ${isBest ? '<span class="badge-best">MELHOR</span>' : ''}</h3>
+                            <div class="desc">${rota.rota.descricao}</div>
+                            <div class="grid-mini">
+                                <div><div class="v">${rota.distancia_km} km</div><div class="l">Distância</div></div>
+                                <div><div class="v">${rota.tempo_voo_formatado}</div><div class="l">Tempo</div></div>
+                                <div><div class="v">${rota.combustivel_com_reserva_gal} gal</div><div class="l">Combustível</div></div>
+                                <div><div class="v">${statusIcon} ${rota.margem_seguranca} gal</div><div class="l">Margem</div></div>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `<div class="error-msg">Erro ao comparar rotas.</div>`;
+            }
+        }
+
+        function selecionarRota(rotaId) {
+            document.getElementById('rota_id').value = rotaId;
+            document.querySelector('.tab[data-tab="calc"]').click();
+            calcular();
+        }
+
+        // ============================================================
+        // MAPA
+        // ============================================================
+        const WMS_DECEA = 'https://geoaisweb.decea.mil.br/geoserver/wms';
+        let basesCarta = null;
+        let cartaOverlay = null;
+        let cartaEscolhida = 'wac';
+        let aerodromos = {};
+        let enquadramentos = {};
+        let enquadramentoAtual = 'rota';
+
+        function codigoPonto(nome) {
+            const m = String(nome).match(/\(([^)]+)\)/);
+            return m ? m[1] : nome;
+        }
+
+        function distanciaNm(a, b) {
+            const R = 3440.065;
+            const rad = d => d * Math.PI / 180;
+            const dLat = rad(b.lat - a.lat);
+            const dLon = rad(b.lon - a.lon);
+            const lat1 = rad(a.lat);
+            const lat2 = rad(b.lat);
+            const h = Math.sin(dLat / 2) ** 2
+                + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+            return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+        }
+
+        function pontoDestino(lat, lon, proa, nm) {
+            const R = 3440.065;
+            const br = proa * Math.PI / 180;
+            const lat1 = lat * Math.PI / 180;
+            const lon1 = lon * Math.PI / 180;
+            const d = nm / R;
+            const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(br));
+            const lon2 = lon1 + Math.atan2(
+                Math.sin(br) * Math.sin(d) * Math.cos(lat1),
+                Math.cos(d) - Math.sin(lat1) * Math.sin(lat2)
+            );
+            return { lat: lat2 * 180 / Math.PI, lon: lon2 * 180 / Math.PI };
+        }
+
+        function diferencaProa(a, b) {
+            return Math.abs((((a - b) % 360) + 540) % 360 - 180);
+        }
+
+        function sentidoCurva(proaAtual, proaNova) {
+            const delta = ((proaNova - proaAtual + 540) % 360) - 180;
+            if (Math.abs(delta) < 8) return 'manter aproximadamente a proa';
+            return delta > 0 ? 'curva pela direita' : 'curva pela esquerda';
+        }
+
+        function formatarProa(graus) {
+            return String(Math.round((graus % 360 + 360) % 360)).padStart(3, '0') + '°';
+        }
+
+        function aerodromoDoPonto(p) {
+            return aerodromos[codigoPonto(p.nome)] || null;
+        }
+
+        function escolherCabeceira(ad, proa) {
+            if (!ad) return null;
+            let melhor = null;
+            ad.pista.cabeceiras.forEach(c => {
+                const d = diferencaProa(c.proa_verdadeira, proa);
+                if (!melhor || d < melhor.d) melhor = { c, d };
+            });
+            return melhor ? melhor.c : null;
+        }
+
+        function outraCabeceira(ad, cabeceira) {
+            return ad.pista.cabeceiras.find(c => c.id !== cabeceira.id) || cabeceira;
+        }
+
+        function ladoCircuito(cabeceira) {
+            return cabeceira.circuito === 'direita' ? 90 : -90;
+        }
+
+        function textoCircuito(cabeceira) {
+            const lado = cabeceira.circuito === 'direita' ? 'direita' : 'esquerda';
+            return cabeceira.circuito_publicado
+                ? `circuito pela ${lado}, publicado pelo DECEA`
+                : `circuito padrão pela ${lado}`;
+        }
+
+        function proaVerdadeira(a, b) {
+            const rad = d => d * Math.PI / 180;
+            const y = Math.sin(rad(b.lon - a.lon)) * Math.cos(rad(b.lat));
+            const x = Math.cos(rad(a.lat)) * Math.sin(rad(b.lat))
+                - Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lon - a.lon));
+            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        }
+
+        function criarBasesCarta() {
+            const comum = {
+                format: 'image/png',
+                transparent: true,
+                version: '1.1.1',
+                uppercase: true,
+                maxZoom: 16,
+                attribution: 'DECEA/ICA — GeoAISWEB',
+            };
+            return {
+                wac: L.tileLayer.wms(WMS_DECEA, {
+                    ...comum,
+                    layers: 'ICA:WAC_3261_CAMPO_GRANDE,ICA:WAC_3262_SAO_PAULO',
+                }),
+                enrc: L.tileLayer.wms(WMS_DECEA, {
+                    ...comum,
+                    layers: 'ICA:ENRC_L5',
+                }),
+                ruas: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap',
+                    maxZoom: 18,
+                }),
+            };
+        }
+
+        function definirBaseCarta(id) {
+            cartaEscolhida = id;
+            document.querySelectorAll('.carta-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.carta === id);
+            });
+            if (!mapaInstancia || !basesCarta) return;
+            if (!mapaInstancia.hasLayer(basesCarta.ruas)) basesCarta.ruas.addTo(mapaInstancia);
+            if (cartaOverlay) {
+                mapaInstancia.removeLayer(cartaOverlay);
+                cartaOverlay = null;
+            }
+            if (id !== 'ruas') {
+                cartaOverlay = basesCarta[id];
+                cartaOverlay.addTo(mapaInstancia);
+            }
+        }
+
+        function rotaDoMapa() {
+            if (ultimoResultado && ultimoResultado.rota) return ultimoResultado.rota;
+            const id = document.getElementById('rota_id').value || 'direta';
+            return rotasDisponiveis[id] || rotasDisponiveis.direta || null;
+        }
+
+        function inicializarMapa() {
+            if (mapaInstancia) return;
+            mapaInstancia = L.map('map', { zoomControl: true }).setView([-22.2, -48.7], 8);
+            basesCarta = criarBasesCarta();
+            definirBaseCarta(cartaEscolhida);
+            L.control.scale({ imperial: false, metric: true, position: 'bottomleft' }).addTo(mapaInstancia);
+        }
+
+        function abrirMapa() {
+            inicializarMapa();
+            if (!mapaInstancia) return;
+            mapaInstancia.invalidateSize();
+            const rota = rotaDoMapa();
+            if (rota) atualizarMapa(rota);
+        }
+
+        function adicionarEtiqueta(lat, lon, texto) {
+            const etiqueta = L.marker([lat, lon], {
+                interactive: false,
+                icon: L.divIcon({
+                    className: 'carta-icone',
+                    html: `<div class="carta-leg">${texto}</div>`,
+                    iconSize: [150, 22],
+                    iconAnchor: [75, 28],
+                }),
+            }).addTo(mapaInstancia);
+            mapaCamadas.push(etiqueta);
+        }
+
+        function desenharPista(ad) {
+            if (!ad || !ad.pista) return;
+            const pista = L.polygon(ad.pista.poligono, {
+                color: '#1a1a1a', weight: 1, fillColor: '#2d2d2d', fillOpacity: 0.85,
+            }).addTo(mapaInstancia);
+            pista.bindPopup(
+                `<b>${ad.icao}</b> — ${ad.nome}<br>Pista ${ad.pista.ident} · ${ad.pista.comprimento_m} m · ${ad.pista.superficie}`
+            );
+            mapaCamadas.push(pista);
+        }
+
+        function desenharCircuito(ad, cabeceira, oposta) {
+            const lado = ladoCircuito(cabeceira);
+            const proa = cabeceira.proa_verdadeira;
+            const alem = pontoDestino(oposta.lat, oposta.lon, proa, 0.6);
+            const finalFix = pontoDestino(cabeceira.lat, cabeceira.lon, proa + 180, 1.5);
+            const ventoInicio = pontoDestino(alem.lat, alem.lon, proa + lado, 0.8);
+            const ventoFim = pontoDestino(finalFix.lat, finalFix.lon, proa + lado, 0.8);
+            const pts = [
+                [cabeceira.lat, cabeceira.lon],
+                [oposta.lat, oposta.lon],
+                [alem.lat, alem.lon],
+                [ventoInicio.lat, ventoInicio.lon],
+                [ventoFim.lat, ventoFim.lon],
+                [finalFix.lat, finalFix.lon],
+                [cabeceira.lat, cabeceira.lon],
+            ];
+            const circuito = L.polyline(pts, {
+                color: '#1d4ed8', weight: 2.5, dashArray: '6, 5',
+            }).addTo(mapaInstancia);
+            mapaCamadas.push(circuito);
+            return { alem, finalFix, ventoInicio, ventoFim, pts };
+        }
+
+        function atualizarMapa(rota) {
+            if (!mapaInstancia || !rota || !rota.origem || !rota.destino) return;
+            mapaCamadas.forEach(c => mapaInstancia.removeLayer(c));
+            mapaCamadas = [];
+
+            const fixes = [rota.origem, ...(rota.waypoints || []), rota.destino];
+            const origemAd = aerodromoDoPonto(rota.origem);
+            const destinoAd = aerodromoDoPonto(rota.destino);
+            const proaSaida = proaVerdadeira(fixes[0], fixes[1]);
+            const proaChegada = proaVerdadeira(fixes[fixes.length - 2], fixes[fixes.length - 1]);
+            const cabeceiraDec = escolherCabeceira(origemAd, proaSaida);
+            const cabeceiraPouso = escolherCabeceira(destinoAd, proaChegada);
+            const opostaDec = cabeceiraDec ? outraCabeceira(origemAd, cabeceiraDec) : null;
+            const opostaPouso = cabeceiraPouso ? outraCabeceira(destinoAd, cabeceiraPouso) : null;
+
+            [origemAd, destinoAd].forEach(desenharPista);
+            (rota.waypoints || []).forEach(wp => desenharPista(aerodromoDoPonto(wp)));
+
+            let subida = null;
+            let circuitoPouso = null;
+            if (cabeceiraDec && opostaDec) {
+                subida = pontoDestino(opostaDec.lat, opostaDec.lon, cabeceiraDec.proa_verdadeira, 1.5);
+            }
+            if (cabeceiraPouso && opostaPouso) {
+                circuitoPouso = desenharCircuito(destinoAd, cabeceiraPouso, opostaPouso);
+            }
+
+            const caminho = [];
+            if (cabeceiraDec && opostaDec && subida) {
+                caminho.push([cabeceiraDec.lat, cabeceiraDec.lon]);
+                caminho.push([opostaDec.lat, opostaDec.lon]);
+                caminho.push([subida.lat, subida.lon]);
+            } else {
+                caminho.push([rota.origem.lat, rota.origem.lon]);
+            }
+            (rota.waypoints || []).forEach(wp => caminho.push([wp.lat, wp.lon]));
+            if (circuitoPouso) {
+                caminho.push([circuitoPouso.finalFix.lat, circuitoPouso.finalFix.lon]);
+                caminho.push([cabeceiraPouso.lat, cabeceiraPouso.lon]);
+            } else {
+                caminho.push([rota.destino.lat, rota.destino.lon]);
+            }
+
+            const halo = L.polyline(caminho, { color: '#ffffff', weight: 8, opacity: 0.9 }).addTo(mapaInstancia);
+            const linha = L.polyline(caminho, { color: '#9b1b30', weight: 3.5 }).addTo(mapaInstancia);
+            mapaCamadas.push(halo, linha);
+
+            fixes.forEach((p, i) => {
+                const tipo = i === 0 ? 'origem' : (i === fixes.length - 1 ? 'destino' : 'waypoint');
+                const cor = tipo === 'destino' ? '#1a7f4b' : (tipo === 'origem' ? '#2a5298' : '#e67e22');
+                const papel = tipo === 'origem' ? 'Decolagem' : (tipo === 'destino' ? 'Pouso' : 'Waypoint');
+                const ad = aerodromoDoPonto(p);
+                const extra = ad ? `<br>Pista ${ad.pista.ident} · elev. ${ad.elev_m} m` : '';
+                const marcador = L.marker([p.lat, p.lon], {
+                    icon: L.divIcon({
+                        className: 'carta-icone',
+                        html: `<div class="carta-pin" style="border-color:${cor}">${codigoPonto(p.nome)}</div>`,
+                        iconSize: [64, 22],
+                        iconAnchor: [32, 11],
+                    }),
+                    zIndexOffset: 500,
+                }).addTo(mapaInstancia);
+                marcador.bindPopup(`<b>${p.nome}</b><br>${papel}${extra}`);
+                mapaCamadas.push(marcador);
+            });
+
+            if (cabeceiraDec) {
+                adicionarEtiqueta(
+                    (cabeceiraDec.lat + subida.lat) / 2,
+                    (cabeceiraDec.lon + subida.lon) / 2,
+                    `DEC ${cabeceiraDec.id}`
+                );
+            }
+            if (cabeceiraPouso && circuitoPouso) {
+                adicionarEtiqueta(
+                    (circuitoPouso.finalFix.lat + cabeceiraPouso.lat) / 2,
+                    (circuitoPouso.finalFix.lon + cabeceiraPouso.lon) / 2,
+                    `POUSO ${cabeceiraPouso.id}`
+                );
+            }
+
+            const nomesCaminho = [];
+            if (cabeceiraDec) nomesCaminho.push({ nome: `Cabeceira ${cabeceiraDec.id}`, lat: cabeceiraDec.lat, lon: cabeceiraDec.lon });
+            if (subida) nomesCaminho.push({ nome: 'Fim da subida', lat: subida.lat, lon: subida.lon });
+            (rota.waypoints || []).forEach(wp => nomesCaminho.push(wp));
+            if (!subida) nomesCaminho.unshift(rota.origem);
+            if (circuitoPouso) {
+                nomesCaminho.push({ nome: `Final ${cabeceiraPouso.id}`, lat: circuitoPouso.finalFix.lat, lon: circuitoPouso.finalFix.lon });
+                nomesCaminho.push({ nome: `Cabeceira ${cabeceiraPouso.id}`, lat: cabeceiraPouso.lat, lon: cabeceiraPouso.lon });
+            } else {
+                nomesCaminho.push(rota.destino);
+            }
+
+            const pernas = [];
+            let totalNm = 0;
+            for (let i = 0; i < nomesCaminho.length - 1; i++) {
+                const a = nomesCaminho[i];
+                const b = nomesCaminho[i + 1];
+                const nm = distanciaNm(a, b);
+                const proa = proaVerdadeira(a, b);
+                totalNm += nm;
+                pernas.push({ de: a, para: b, nm, proa });
+                if (nm >= 8) {
+                    adicionarEtiqueta((a.lat + b.lat) / 2, (a.lon + b.lon) / 2,
+                        `${nm.toFixed(0)} NM · ${formatarProa(proa)}`);
+                }
+            }
+
+            const box = document.getElementById('mapa-pernas');
+            if (box) {
+                let html = `<table><thead><tr>
+                    <th>Trecho</th><th>Distância</th><th>Proa verdadeira</th>
+                </tr></thead><tbody>`;
+                pernas.forEach(p => {
+                    html += `<tr>
+                        <td>${p.de.nome.includes('(') ? codigoPonto(p.de.nome) : p.de.nome} → ${p.para.nome.includes('(') ? codigoPonto(p.para.nome) : p.para.nome}</td>
+                        <td>${p.nm.toFixed(1)} NM</td>
+                        <td>${formatarProa(p.proa)}</td>
+                    </tr>`;
+                });
+                html += `<tr>
+                    <td><strong>Total até a cabeceira</strong></td>
+                    <td><strong>${totalNm.toFixed(1)} NM</strong></td>
+                    <td></td>
+                </tr></tbody></table>`;
+                box.innerHTML = html;
+            }
+
+            const proc = document.getElementById('mapa-procedimentos');
+            if (proc) {
+                const proximo = fixes[1];
+                const curvaSaida = cabeceiraDec
+                    ? sentidoCurva(cabeceiraDec.proa_verdadeira, proaVerdadeira(subida, proximo))
+                    : '';
+                const decHtml = cabeceiraDec ? `
+                    <div class="proc-card">
+                        <h3>Decolagem ${codigoPonto(rota.origem.nome)} — pista ${cabeceiraDec.id}</h3>
+                        <div class="pista">Proa magnética ${formatarProa(cabeceiraDec.proa_magnetica)} · pista ${origemAd.pista.ident} · ${origemAd.pista.comprimento_m} m</div>
+                        <ol>
+                            <li>Alinhar na cabeceira ${cabeceiraDec.id}.</li>
+                            <li>Decolar e subir na proa da pista por 1,5 NM.</li>
+                            <li>No fim da subida, ${curvaSaida} para ${codigoPonto(proximo.nome)} (${formatarProa(proaVerdadeira(subida, proximo))} verdadeiros).</li>
+                        </ol>
+                    </div>` : '';
+                const pousoHtml = cabeceiraPouso ? `
+                    <div class="proc-card">
+                        <h3>Pouso ${codigoPonto(rota.destino.nome)} — pista ${cabeceiraPouso.id}</h3>
+                        <div class="pista">Proa magnética ${formatarProa(cabeceiraPouso.proa_magnetica)} · ${textoCircuito(cabeceiraPouso)} · pista ${destinoAd.pista.ident}</div>
+                        <ol>
+                            <li>Ingressar na final a 1,5 NM da cabeceira ${cabeceiraPouso.id}, na proa da pista.</li>
+                            <li>Se for preciso enquadrar o circuito: perna do vento pela ${cabeceiraPouso.circuito}, depois base e final.</li>
+                            <li>Pousar na cabeceira ${cabeceiraPouso.id}.</li>
+                        </ol>
+                    </div>` : '';
+                proc.innerHTML = `<div class="grid-2">${decHtml}${pousoHtml}</div>`;
+            }
+
+            enquadramentos = {
+                rota: linha.getBounds(),
+                decolagem: subida ? L.latLngBounds([
+                    [cabeceiraDec.lat, cabeceiraDec.lon],
+                    [opostaDec.lat, opostaDec.lon],
+                    [subida.lat, subida.lon],
+                ]) : linha.getBounds(),
+                pouso: circuitoPouso ? L.latLngBounds(circuitoPouso.pts) : linha.getBounds(),
+            };
+
+            mapaInstancia.invalidateSize();
+            enquadrarMapa(enquadramentoAtual);
+        }
+
+        function enquadrarMapa(qual) {
+            enquadramentoAtual = qual;
+            document.querySelectorAll('.enquadrar-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.enquadrar === qual);
+            });
+            const limites = enquadramentos[qual];
+            if (!limites || !mapaInstancia) return;
+            mapaInstancia.fitBounds(limites, {
+                padding: [40, 40],
+                maxZoom: qual === 'rota' ? 9 : 14,
+            });
+        }
+
+        async function carregarAerodromos() {
+            const r = await fetch('/aerodromos');
+            aerodromos = await r.json();
+            if (mapaInstancia) {
+                const rota = rotaDoMapa();
+                if (rota) atualizarMapa(rota);
+            }
+        }
+
+        // ============================================================
+        // METAR/TAF
+        // ============================================================
+        async function carregarMeteo() {
+            const container = document.getElementById('meteo-container');
+            container.innerHTML = '<div class="meteo-loading">🔄 Buscando METAR e TAF...</div>';
+            try {
+                const r = await fetch('/meteo');
+                const estacoes = await r.json();
+                meteoCarregado = true;
+
+                let html = '<div class="meteo-grid">';
+                estacoes.forEach(e => {
+                    const metarTxt = e.metar || 'Sem dados';
+                    const tafTxt = e.taf || 'Sem dados';
+                    html += `
+                        <div class="meteo-card">
+                            <h3>${e.nome} <span class="icao">${e.icao}</span></h3>
+                            <div class="section-label">METAR</div>
+                            <div class="raw">${metarTxt || 'N/D'}</div>
+                            <div class="section-label">TAF</div>
+                            <div class="raw">${tafTxt || 'N/D'}</div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `<div class="error-msg">Erro ao buscar dados meteorológicos.</div>`;
+            }
+        }
+
+        // ============================================================
+        // PDF
+        // ============================================================
+        async function exportarPDF() {
+            if (!ultimoResultado || !ultimoDados) return;
+            const btn = document.getElementById('btn-pdf');
+            btn.disabled = true;
+            btn.textContent = '⏳ Gerando...';
+
+            try {
+                const r = await fetch('/pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dados: ultimoDados, resultado: ultimoResultado })
+                });
+                if (!r.ok) throw new Error('Falha');
+                const blob = await r.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `plano_voo_cessna140_${new Date().toISOString().slice(0,10)}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (err) {
+                alert('Erro ao gerar PDF.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📄 Exportar PDF';
+            }
+        }
+
+        // ============================================================
+        // HISTÓRICO
+        // ============================================================
+        async function carregarHistorico() {
+            const container = document.getElementById('historico-container');
+            try {
+                const r = await fetch('/historico');
+                const itens = await r.json();
+
+                if (itens.length === 0) {
+                    container.innerHTML = `<div class="placeholder">Nenhum cálculo registrado ainda.</div>`;
+                    return;
+                }
+
+                let html = `<table><thead><tr>
+                    <th>Data/Hora</th><th>Dist. (km)</th><th>Tempo</th>
+                    <th>Comb. (gal)</th><th>Status</th><th></th>
+                </tr></thead><tbody>`;
+
+                itens.forEach(item => {
+                    const data = new Date(item.data_hora).toLocaleString('pt-BR');
+                    const statusClass = item.status === 'ok' ? 'status-ok' : 'status-error';
+                    const statusLabel = item.status === 'ok' ? 'OK' : 'Insuf.';
+                    html += `<tr>
+                        <td>${data}</td>
+                        <td>${item.distancia_km}</td>
+                        <td>${formatarTempo(item.tempo_voo_horas)}</td>
+                        <td>${item.combustivel_com_reserva_gal}</td>
+                        <td><span class="status-box ${statusClass}" style="margin:0; padding:4px 8px; font-size:11px;">${statusLabel}</span></td>
+                        <td><button class="btn-small btn-danger" onclick="apagarItem(${item.id})">Excluir</button></td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = `<div class="error-msg">Erro ao carregar histórico.</div>`;
+            }
+        }
+
+        function formatarTempo(horas) {
+            const h = Math.floor(horas);
+            const m = Math.round((horas - h) * 60);
+            return `${String(h).padStart(2, '0')}h${String(m).padStart(2, '0')}min`;
+        }
+
+        async function apagarItem(id) {
+            if (!confirm('Apagar este registro?')) return;
+            await fetch(`/historico/${id}`, { method: 'DELETE' });
+            carregarHistorico();
+        }
+
+        async function limparHistorico() {
+            if (!confirm('Apagar TODO o histórico?')) return;
+            await fetch('/historico', { method: 'DELETE' });
+            carregarHistorico();
+        }
+
+        // ============================================================
+        // INICIALIZAÇÃO
+        // ============================================================
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') calcular();
+            });
+        });
+
+        carregarRotas();
+        carregarAerodromos();
+    </script>
+</body>
+</html>

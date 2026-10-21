@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block titulo %}Plano de voo{% endblock %}</title>
+    <style>
+        body { font-family: sans-serif; margin: 2rem; color: #1a1a1a; }
+        a { color: #0b3d91; }
+        form { display: grid; gap: 0.6rem; max-width: 28rem; }
+        label { display: grid; gap: 0.2rem; }
+        .aviso { background: #fff6d8; padding: 0.8rem; }
+        .erro { color: #8a1f1f; }
+        table { border-collapse: collapse; }
+        td, th { border-bottom: 1px solid #ccc; padding: 0.3rem 0.6rem; text-align: left; }
+    </style>
+</head>
+<body>
+    <header>
+        <strong>Plano de voo</strong>
+        <a href="{{ url_for('painel') }}">Painel</a>
+        {% if session.get('piloto_id') %}
+        <form method="post" action="{{ url_for('sair') }}" style="display:inline">
+            <button type="submit">Sair</button>
+        </form>
+        {% endif %}
+    </header>
+    <main>
+        {% block corpo %}{% endblock %}
+    </main>
+</body>
+</html>

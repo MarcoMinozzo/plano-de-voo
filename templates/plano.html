@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block titulo %}{{ plano.origem_icao }} → {{ plano.destino_icao }}{% endblock %}
+{% block corpo %}
+<h1>{{ plano.origem_icao }} → {{ plano.destino_icao }}</h1>
+<p>Aeronave: {{ aeronave.nome }}. Estado: {{ plano.estado }}.</p>
+{% if plano.resultado.alertas %}
+<ul>{% for alerta in plano.resultado.alertas %}<li>{{ alerta }}</li>{% endfor %}</ul>
+{% endif %}
+<table>
+    <thead><tr><th>Grandeza</th><th>Valor</th><th>Unidade</th><th>Fonte</th></tr></thead>
+    <tbody>
+    {% for linha in plano.resultado.linhas %}
+        <tr>
+            <td>{{ linha.nome }}</td>
+            <td>{{ linha.valor }}</td>
+            <td>{{ linha.unidade }}</td>
+            <td>{{ linha.fonte }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+<h2>Tempo, vento, carta e radar</h2>
+<p>Meteorologia: {{ plano.meteorologia.estado }}.</p>
+<p>Vento: {{ plano.vento.estado }}{% if plano.vento.efeito %} — {{ plano.vento.efeito }}{% endif %}.</p>
+<p>Carta: {{ plano.carta.estado }}{% if plano.carta.url %} — <a href="{{ plano.carta.url }}">{{ plano.carta.fonte }}</a>{% endif %}.</p>
+<p>Radar: {{ plano.radar.estado }}.</p>
+<div id="mapa" style="height: 320px"></div>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function () {
+  const el = document.getElementById("mapa");
+  if (!window.L || !el) return;
+  const origem = {{ [origem.lat, origem.lon] | tojson }};
+  const destino = {{ [destino.lat, destino.lon] | tojson }};
+  const mapa = L.map(el).setView(origem, 7);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "OpenStreetMap"
+  }).addTo(mapa);
+  const linha = L.polyline([origem, destino]).addTo(mapa);
+  mapa.fitBounds(linha.getBounds(), {padding: [20, 20]});
+  const radar = {{ plano.radar | tojson }};
+  if (radar.estado === "disponivel" && radar.url) {
+    L.imageOverlay(radar.url, [[radar.lat_min, radar.lon_min], [radar.lat_max, radar.lon_max]]).addTo(mapa);
+  }
+})();
+</script>
+<h2>Checklist</h2>
+<ul>
+{% for item in plano.itens %}
+<li>
+    <form method="post" action="{{ url_for('checklist', plano_id=plano.id, item_id=item.id) }}">
+        <input type="hidden" name="marcado" value="{{ 'false' if item.marcado else 'true' }}">
+        <button type="submit">{{ "marcado" if item.marcado else "marcar" }}</button>
+        {{ item.texto }} ({{ item.fonte }})
+    </form>
+</li>
+{% endfor %}
+</ul>
+<p><a href="{{ url_for('pdf', plano_id=plano.id) }}">Imprimir PDF</a></p>
+<form method="post" action="{{ url_for('apagar_plano', plano_id=plano.id) }}" onsubmit="return false">
+</form>
+<form id="apagar" onsubmit="event.preventDefault(); fetch('{{ url_for('apagar_plano', plano_id=plano.id) }}', {method: 'DELETE', headers: {'Content-Type': 'application/json', 'Accept': 'application/json'}, body: JSON.stringify({confirmar: confirm('Apagar este plano?')})}).then(r => { if (r.ok) location.href='{{ url_for('painel') }}'; });">
+    <button type="submit">Apagar plano</button>
+</form>
+<article class="aviso">{{ orientacao }}</article>
+{% endblock %}
