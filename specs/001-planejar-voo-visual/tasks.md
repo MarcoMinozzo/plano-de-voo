@@ -5,6 +5,8 @@ description: "Task list for planejar voo visual"
 
 # Tasks: Planejar voo visual
 
+As tarefas do catálogo nacional e da rota com escalas estão em `specs/002-rota-com-escalas/tasks.md`. As tarefas abaixo permanecem as do plano direto.
+
 **Input**: Design documents from `/specs/001-planejar-voo-visual/`
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/api-plano.md, quickstart.md, constitution 2.1.1

@@ -1,5 +1,7 @@
 # Research: Planejar voo visual
 
+A pesquisa do catálogo nacional, do registro de aviões e do critério da rota está em `specs/002-rota-com-escalas/research.md`. O que segue vale para o plano direto.
+
 ## Banco de dados
 
 - **Decision**: PostgreSQL 16 é o único banco de piloto, manual, aeródromo e plano.

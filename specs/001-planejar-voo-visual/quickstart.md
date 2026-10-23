@@ -1,5 +1,7 @@
 # Quickstart: Planejar voo visual
 
+A conferência do catálogo nacional e das escalas está em `specs/002-rota-com-escalas/quickstart.md`. Os passos abaixo conferem o plano direto.
+
 Conferência do plano depois da implementação. Não substitui `tasks.md`. Detalhe de campo está em [data-model.md](./data-model.md) e o contrato em [contracts/api-plano.md](./contracts/api-plano.md).
 
 ## Pré-requisitos

@@ -190,6 +190,8 @@ Quem opera o sistema segue um texto do projeto e consegue preparar o banco, colo
 
 ## Assumptions
 
+O catálogo nacional de aeródromos, o catálogo de aviões pequenos e a rota com escalas estão em `specs/002-rota-com-escalas/`. Este documento descreve o plano direto já especificado, com a semente de sete aeródromos e o manual do Cessna 140.
+
 - O voo é visual, de avião pequeno, no Brasil, e a norma vigente é a de voo visual aplicável a esse caso. Voo noturno, voo por instrumentos e envio do plano ao órgão de controle ficam fora desta versão. O sistema prepara e imprime o plano; não protocola o plano numa autoridade.
 - A interface e o PDF ficam em português.
 - O piloto escolhe uma aeronave cujo manual oficial o sistema já possui. O primeiro manual disponível é o do Cessna 140. Outro avião pequeno de voo visual entra quando o manual correspondente estiver disponível. O piloto não digita o número técnico que o manual já traz.

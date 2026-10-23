@@ -1,8 +1,8 @@
 <!--
 Sync Impact Report
-- Version change: 2.1.0 → 2.1.1
+- Version change: 2.1.1 → 2.2.0
 - Modified principles: none
-- Added sections: none
+- Added sections: Catálogo nacional e rota
 - Removed sections: none
 - Follow-up TODOs: none
 -->
@@ -69,14 +69,42 @@ chaves e como subir o serviço, sem incluir segredo. Os textos ficam em
 
 ## Restrições de domínio e pilha
 
-O piloto informa origem, destino e hora. O sistema reconhece aeródromo por
-indicativo ICAO. A semente inicial inclui SBJD, SBAU, SBBU, SBML, SBDN, SBKP
-e SBRP. Outro indicativo entra com coordenada e fonte publicadas.
+O piloto informa origem, destino e hora. O sistema reconhece o aeródromo
+pelo identificador publicado na emenda vigente do ROTAER.
 
-Números técnicos do Cessna 140 existem uma vez, no registro do manual no
-PostgreSQL: vazio 404 kg, máximo de decolagem 658 kg, bagagem máxima 36 kg,
-braço da bagagem 2,03 m. É proibido copiar esses números para o HTML ou para
-uma segunda constante. Outro avião só entra com o próprio manual no banco.
+## Catálogo nacional e rota
+
+O banco MUST conter os aeródromos de avião da emenda vigente do ROTAER,
+obtidos pela área `rotaer` do AISWEB. Coordenada, elevação e situação vêm
+só dessa publicação. Heliponto fica de fora. Sem a emenda vigente, o
+catálogo nacional MUST aparecer indisponível. É proibido completar a lista
+com coordenada estimada ou tratar a semente antiga de sete indicativos como
+se fosse o Brasil inteiro.
+
+O banco MUST conter os modelos de avião pequeno usados no Brasil. Avião
+pequeno é o definido no RBAC nº 01: peso máximo de decolagem aprovado igual
+ou inferior a 5.670 kg. Helicóptero, planador, balão e avião grande ficam de
+fora. A ordem de prioridade é a quantidade de aeronaves daquele modelo no
+extrato público do Registro Aeronáutico Brasileiro. Número técnico MUST vir
+do manual de voo oficial daquele modelo, uma vez, no registro do manual.
+Modelo sem esse manual MUST aparecer como sem manual e MUST NOT ser usado
+no cálculo. É proibido inventar peso, velocidade ou consumo.
+
+Os números já gravados do Cessna 140 permanecem esse registro: vazio 404 kg,
+máximo de decolagem 658 kg, bagagem máxima 36 kg, braço da bagagem 2,03 m.
+É proibido copiá-los para o HTML ou para uma segunda constante.
+
+Dada a origem e o destino, o servidor MUST escolher a rota e as escalas
+necessárias. Cada trecho MUST cumprir o manual da aeronave e a reserva do
+voo visual diurno do RBAC nº 91.151: combustível para o pouso previsto e
+mais 30 minutos em cruzeiro, com o vento só quando a fonte oficial cobrir o
+trecho. A rota escolhida é a de menor tempo total de voo; em empate, a de
+menos escalas; em novo empate, a de menor distância. Escala só pode ser
+aeródromo de avião da emenda vigente. Sem rota que cumpra a regra, o plano
+MUST mostrar o motivo e MUST NOT ser apresentado como aceitável. A conta
+MUST ficar no servidor.
+
+## Pilha e acesso
 
 Cada plano pertence a um piloto. A consulta de plano MUST filtrar pelo piloto
 da sessão. Meteorologia de aeródromo vem do Aviation Weather Center.
@@ -116,7 +144,8 @@ O caminho de cada mudança é este, um passo por vez:
 5. `/speckit-implement` executa as tarefas.
 6. `/speckit-converge` confere o que ainda falta.
 
-A spec ativa está em `specs/001-planejar-voo-visual/`. Templates ficam em
+A spec ativa está em `specs/002-rota-com-escalas/`. A spec anterior,
+`specs/001-planejar-voo-visual/`, descreve o plano direto já construído. Templates ficam em
 `.specify/templates/`. Scripts ficam em `.specify/scripts/bash/`. Skills
 ficam em `.cursor/skills/`. Não editar esses arquivos para descrever uma
 feature. Comportamento novo MUST abrir outra pasta em `specs/` por
@@ -132,7 +161,9 @@ seção. PATCH só esclarece texto.
 Revisão de uma mudança MUST verificar: spec existente para comportamento novo,
 cálculo no servidor, unidade e fonte visíveis, aviso educacional preservado,
 falha de tempo, vento, carta e radar explícita, plano visível só para o piloto
-dono, senha mínima, bloqueio de tentativas, sessão encerrada ao sair, e
-nenhuma dependência nova sem justificativa no plano.
+dono, senha mínima, bloqueio de tentativas, sessão encerrada ao sair,
+catálogo de aeródromos só da emenda vigente, número de avião só do manual,
+rota e escalas calculadas no servidor, e nenhuma dependência nova sem
+justificativa no plano.
 
-**Version**: 2.1.1 | **Ratified**: 2026-10-21 | **Last Amended**: 2026-10-21
+**Version**: 2.2.0 | **Ratified**: 2026-10-21 | **Last Amended**: 2026-10-21

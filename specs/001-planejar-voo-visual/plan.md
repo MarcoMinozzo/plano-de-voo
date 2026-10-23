@@ -1,5 +1,7 @@
 # Implementation Plan: Planejar voo visual
 
+O catálogo nacional e a rota com escalas estão em `specs/002-rota-com-escalas/plan.md`. A constituição vigente é a 2.2.0. Este plano permanece o do plano direto.
+
 **Branch**: `001-planejar-voo-visual` | **Date**: 2026-10-21 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/001-planejar-voo-visual/spec.md`

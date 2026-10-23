@@ -1,5 +1,7 @@
 # Contrato HTTP: plano de voo visual
 
+O contrato da rota com escalas está em `specs/002-rota-com-escalas/contracts/api-rota.md`. Este contrato é o do plano direto.
+
 Páginas e respostas em português. Sessão do Flask identifica o piloto. Rota de plano que não pertence à sessão responde recusa e não revela se o plano existe. Corpo de erro diz o campo ou a fonte que falhou. Não inventa tempo, vento, carta nem radar.
 
 Grandezas saem com valor, unidade e fonte.

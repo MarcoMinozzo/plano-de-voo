@@ -1,5 +1,7 @@
 # Specification Quality Checklist: Planejar voo visual
 
+O checklist da rota com escalas está em `specs/002-rota-com-escalas/checklists/requirements.md`. Este checklist continua o do plano direto.
+
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-10-21
 **Feature**: [spec.md](../spec.md)

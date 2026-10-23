@@ -1,5 +1,7 @@
 # Data model: Planejar voo visual
 
+Emenda do ROTAER, frota do modelo e trechos da rota estão em `specs/002-rota-com-escalas/data-model.md`. O modelo abaixo é o do plano direto.
+
 Banco: PostgreSQL 16. Números do manual existem uma vez, na aeronave. Todo plano carrega `piloto_id`.
 
 ## Piloto

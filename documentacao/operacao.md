@@ -51,3 +51,7 @@ Abra a página inicial. Cadastre um piloto com senha de pelo menos 8 caracteres 
 - A página antiga `templates/index.html` não faz parte deste serviço e não deve ser publicada. Ela guarda conta de navegação e um número do manual.
 
 Nesta máquina o PostgreSQL do sistema é o 14 e não aceita o usuário do projeto. A base de desenvolvimento está num PostgreSQL 16 à parte. O endereço dela fica só no `.env`.
+
+## Catálogo nacional
+
+A especificação da carga está em `specs/002-rota-com-escalas/`. A emenda vigente dos aeródromos vem da área rotaer do AISWEB. Os modelos de avião pequeno vêm do extrato público do Registro Aeronáutico Brasileiro. Sem a chave do AISWEB, o catálogo nacional fica indisponível. A semente atual de sete aeródromos não é essa lista. O comando de carga entra neste texto só quando a implementação existir, e sem valor de chave nem número de manual.
