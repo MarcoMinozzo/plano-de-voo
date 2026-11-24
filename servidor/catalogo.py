@@ -408,6 +408,8 @@ def _marcar_rab_indisponivel(db):
 
 
 def _compativel_com_manual(atual, grupo):
+    if atual.nome.casefold() == grupo["nome"].casefold():
+        return True
     fabricante = (grupo.get("fabricante") or "").strip()
     if not fabricante or atual.manual_estado != "gravado":
         return atual.nome.casefold() == grupo["nome"].casefold()

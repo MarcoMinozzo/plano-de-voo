@@ -103,6 +103,7 @@ class Aeronave(Base):
     velocidade_unidade: Mapped[str | None] = mapped_column(String(20), nullable=True)
     consumo_valor: Mapped[float | None] = mapped_column(Float, nullable=True)
     consumo_unidade: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    combustivel_kg_por_gal: Mapped[float | None] = mapped_column(Float, nullable=True)
     itens_manutencao: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
 

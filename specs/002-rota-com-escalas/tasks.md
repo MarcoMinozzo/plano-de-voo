@@ -116,25 +116,25 @@ Aplicação Flask na raiz: `servidor/`, `templates/`, `tests/`, `alembic/`, `doc
 
 ### Fundação
 
-- [ ] T021 Acrescentar `combustivel_kg_por_gal` (Float, opcional) ao modelo `Aeronave` em `servidor/modelos.py`
-- [ ] T022 Gerar em `alembic/versions/` a migração da coluna `combustivel_kg_por_gal`, com `downgrade` que a remove
+- [X] T021 Acrescentar `combustivel_kg_por_gal` (Float, opcional) ao modelo `Aeronave` em `servidor/modelos.py`
+- [X] T022 Gerar em `alembic/versions/` a migração da coluna `combustivel_kg_por_gal`, com `downgrade` que a remove
 
 ### Testes (escrever antes e ver falhar)
 
-- [ ] T023 [P] [US2] Escrever `tests/test_manuais.py` com arquivos fictícios em `tmp_path`: arquivo válido grava `gravado` com fonte de documento e página; lb, in, L, mph, km/h, L/h e lb/h viram kg, m, gal, kt e gal/h; campo, unidade ou página faltando recusa pelo nome do campo; `experimental` verdadeiro recusa; máximo acima de 5.670 kg ou vazio igual ou maior que o máximo recusa; rodar duas vezes dá o mesmo banco; o Cessna 140 não muda; `carregar_rab` depois da carga mantém o modelo `gravado`
-- [ ] T024 [P] [US2] Acrescentar em `tests/test_calculo.py` que o peso do combustível usa `combustivel_kg_por_gal` do modelo e, sem ele, os 2,72 kg/gal de avgas
+- [X] T023 [P] [US2] Escrever `tests/test_manuais.py` com arquivos fictícios em `tmp_path`: arquivo válido grava `gravado` com fonte de documento e página; lb, in, L, mph, km/h, L/h e lb/h viram kg, m, gal, kt e gal/h; campo, unidade ou página faltando recusa pelo nome do campo; `experimental` verdadeiro recusa; máximo acima de 5.670 kg ou vazio igual ou maior que o máximo recusa; rodar duas vezes dá o mesmo banco; o Cessna 140 não muda; `carregar_rab` depois da carga mantém o modelo `gravado`
+- [X] T024 [P] [US2] Acrescentar em `tests/test_calculo.py` que o peso do combustível usa `combustivel_kg_por_gal` do modelo e, sem ele, os 2,72 kg/gal de avgas
 
 ### Implementação
 
-- [ ] T025 [US2] Criar `servidor/manuais.py` conforme `contracts/registro-manual.md`: ler `servidor/manuais/*.json`, validar, converter com os fatores exatos de `research.md`, compor `fonte_manual` com documento, páginas e condição de cruzeiro, gravar pelo nome do RAB e imprimir `gravado:` ou `recusado:`, com código de saída 0 ou 1
-- [ ] T026 [US2] Em `servidor/calculo.py`, usar `combustivel_kg_por_gal` do modelo em `avaliar_carga`, com `KG_POR_GAL` como padrão, e citar a fonte do manual na linha do peso
+- [X] T025 [US2] Criar `servidor/manuais.py` conforme `contracts/registro-manual.md`: ler `servidor/manuais/*.json`, validar, converter com os fatores exatos de `research.md`, compor `fonte_manual` com documento, páginas e condição de cruzeiro, gravar pelo nome do RAB e imprimir `gravado:` ou `recusado:`, com código de saída 0 ou 1
+- [X] T026 [US2] Em `servidor/calculo.py`, usar `combustivel_kg_por_gal` do modelo em `avaliar_carga`, com `KG_POR_GAL` como padrão, e citar a fonte do manual na linha do peso
 - [ ] T027 [US2] Transcrever em `servidor/manuais/` os modelos 1 a 10 da tabela de `research.md`, de manual oficial com cópia pública, com a página de cada número. Modelo sem cópia pública fica sem arquivo, e o próximo não experimental da frota entra; registrar a troca no PR. Um PR só para este lote, revisado número por número pelo piloto responsável
 - [ ] T028 [US2] Transcrever em `servidor/manuais/` os modelos 11 a 20 da mesma tabela, com a mesma regra e um PR só para este lote
 
 ### Fechamento
 
-- [ ] T029 Acrescentar `python -m servidor.manuais` à carga em `documentacao/operacao.md`, depois de `python -m servidor.catalogo`, sem número de manual
-- [ ] T030 Rodar `pytest tests/test_manuais.py tests/test_calculo.py tests/test_catalogo_aeronaves.py tests/test_rota.py tests/review/test_module_shape.py` e corrigir falha
+- [X] T029 Acrescentar `python -m servidor.manuais` à carga em `documentacao/operacao.md`, depois de `python -m servidor.catalogo`, sem número de manual
+- [X] T030 Rodar `pytest tests/test_manuais.py tests/test_calculo.py tests/test_catalogo_aeronaves.py tests/test_rota.py tests/review/test_module_shape.py` e corrigir falha
 - [ ] T031 Percorrer os passos 4 e 5 de `quickstart.md` com o extrato do RAB do piloto responsável e anotar no PR quantos modelos ficaram `gravado`
 
 **Checkpoint**: T021 a T026 entregam a carga sem nenhum manual real. T027 e T028 trazem os números, e cada lote pode entrar sozinho.

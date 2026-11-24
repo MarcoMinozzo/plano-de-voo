@@ -43,11 +43,18 @@ def distancia_nm(lat1, lon1, lat2, lon2):
     return distancia_km(lat1, lon1, lat2, lon2) * NM_POR_KM
 
 
+def massa_por_galao(aeronave):
+    valor = getattr(aeronave, "combustivel_kg_por_gal", None)
+    if valor:
+        return float(valor), aeronave.fonte_manual
+    return KG_POR_GAL, FONTE_AVGAS
+
+
 def avaliar_carga(aeronave, particulares):
     peso_pessoas = float(particulares["peso_pessoas_kg"])
     peso_bagagem = float(particulares["peso_bagagem_kg"])
     combustivel_gal = float(aeronave.combustivel_valor)
-    peso_combustivel = combustivel_gal * KG_POR_GAL
+    peso_combustivel = combustivel_gal * massa_por_galao(aeronave)[0]
     peso_total = (
         float(aeronave.peso_vazio_kg)
         + peso_pessoas
@@ -140,7 +147,7 @@ def calcular(aeronave, origem, destino, particulares, vento=None):
             _linha("Reserva", round(reserva, 2), aeronave.combustivel_unidade, FONTE_RESERVA),
             _linha("Combustível necessário", round(total, 2), aeronave.combustivel_unidade, fonte_manual),
             _linha("Peso total", round(peso_total, 1), "kg", fonte_manual),
-            _linha("Peso de combustível", round(peso_combustivel, 1), "kg", FONTE_AVGAS),
+            _linha("Peso de combustível", round(peso_combustivel, 1), "kg", massa_por_galao(aeronave)[1]),
         ]
     )
     return {

@@ -39,6 +39,7 @@ Na raiz do repositório, com o `.venv` ativo e o PostgreSQL em execução:
 alembic upgrade head
 python -m servidor.semente
 python -m servidor.catalogo
+python -m servidor.manuais
 flask --app app:criar_app run
 ```
 
@@ -67,5 +68,7 @@ python -m servidor.catalogo
 ```
 
 O comando lê a área rotaer do AISWEB e o arquivo indicado por `RAB_EXTRATO`. Ele grava a emenda vigente e os modelos de avião pequeno. Não escreva chave, senha nem número de manual neste arquivo.
+
+Depois, rode `python -m servidor.manuais`. Ele lê os manuais revisados em `servidor/manuais/`, um arquivo por modelo, e marca cada modelo como manual gravado. A saída nomeia cada arquivo recusado e o campo com problema, e o comando termina com código 1 quando há recusa. O formato está em `specs/002-rota-com-escalas/contracts/registro-manual.md`.
 
 Depois da carga, conte os aeródromos de avião oferecidos e confira que um heliponto conhecido da emenda não entra nessa lista. Na lista de modelos, a ordem é a da frota. Os modelos que somam a maior parte da frota precisam estar com o manual gravado. Um modelo sem manual aparece e o cálculo é recusado pelo nome.
