@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block titulo %}Plano de voo{% endblock %}</title>
     <style>
+        *, *::before, *::after { box-sizing: border-box; }
         body {
             font-family: sans-serif;
             margin: 0;
-            color: #001030;
+            color: #F4F7FB;
             line-height: 1.45;
             min-height: 100vh;
             background: #001030 url("{{ url_for('static', filename='casca/blueprint-airport-runway.jpg') }}") center / cover fixed;
@@ -43,16 +44,25 @@
             text-decoration: none;
         }
         .menu-voo form { display: inline; margin: 0; }
+        #sem-voo { display: none; flex-basis: 100%; margin: 0; padding: 0 12px; }
+        #sem-voo:target { display: block; }
         main { padding: 12px; }
-        .vidro {
-            width: min(100% - 24px, 40rem);
+        .vidro, .leitura {
+            width: min(100%, 40rem);
             margin: 16px auto;
             padding: 24px;
             border-radius: 24px;
             background: rgba(28, 51, 72, 0.82);
+            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
             color: #F4F7FB;
+            overflow-wrap: break-word;
         }
+        .leitura, #resumo, .abas { width: min(100%, 56rem); }
+        .vidro > :first-child, .leitura > :first-child { margin-top: 0; }
+        .vidro > :last-child, .leitura > :last-child { margin-bottom: 0; }
         .vidro input, .vidro select {
+            max-width: 100%;
             background: #F4F7FB;
             color: #001030;
             border: 0;
@@ -60,8 +70,10 @@
             padding: 12px;
             font: inherit;
         }
+        .vidro input[type=checkbox] { width: 20px; height: 20px; padding: 0; vertical-align: middle; }
         .vidro button, .leitura button {
             min-height: 44px;
+            padding: 12px 16px;
             border: 0;
             border-radius: 16px;
             background: #F0A000;
@@ -78,26 +90,37 @@
             border: 4px solid rgba(240, 160, 0, 0.35);
             border-top-color: #F0A000;
             border-radius: 9999px;
+            animation: girar 1s linear infinite;
         }
-        .leitura {
-            width: min(100% - 24px, 48rem);
-            margin: 16px auto;
-            padding: 24px;
-            border-radius: 24px;
-            background: rgba(244, 247, 251, 0.94);
-            color: #001030;
-        }
-        a { color: #0090F0; }
-        .leitura a { color: #001030; }
-        form { display: grid; gap: 0.6rem; }
-        label { display: grid; gap: 0.2rem; }
+        @keyframes girar { to { transform: rotate(360deg); } }
+        a, .vidro a, .leitura a { color: #F4F7FB; }
+        form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }
+        label { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.2rem; min-width: 0; }
+        label > input:not([type=checkbox]), label > select { width: 100%; min-width: 0; }
         .aviso { margin-top: 16px; }
         .erro { color: #F0A000; }
+        .rolagem { max-width: 100%; overflow-x: auto; margin: 0 0 16px; scrollbar-color: #8AA0B8 transparent; }
+        .rolagem.larga table { min-width: 32rem; }
         table { border-collapse: collapse; width: 100%; }
-        td, th { border-bottom: 1px solid #8AA0B8; padding: 0.3rem 0.6rem; text-align: left; }
+        td, th { border-bottom: 1px solid #8AA0B8; padding: 0.3rem 0.6rem; text-align: left; vertical-align: top; }
         caption { caption-side: bottom; text-align: left; padding-top: 0.4rem; }
-        #mapa { height: 320px; margin-top: 0.4rem; }
-        .abas { display: flex; gap: 8px; overflow-x: auto; }
+        #mapa { height: 320px; margin-top: 0.4rem; border-radius: 8px; }
+        #mapa a { color: #0090F0; }
+        .leitura ul { padding-left: 1.2rem; }
+        .leitura li { margin-bottom: 12px; }
+        .leitura li form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+        .abas { display: flex; gap: 8px; overflow-x: auto; margin: 0 auto; scrollbar-color: #8AA0B8 transparent; }
+        .abas a {
+            flex: 0 0 auto;
+            min-height: 44px;
+            padding: 12px 16px;
+            border-radius: 16px;
+            background: #001030;
+            color: #F4F7FB;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .abas a:first-child { background: #F0A000; color: #001030; }
         @media (max-width: 719px) {
             body { overflow-x: hidden; }
         }

@@ -8,6 +8,14 @@
 
 **Input**: User description: "Revestir todas as telas com a planta da pista e o emblema Plano de Voo. A entrada, o cadastro e o plano novo ficam num card central de vidro azul acinzentado. Ao calcular, o card some e uma ampulheta diz Em processamento até a resposta. O plano calculado mantém um resumo acima das fichas. O menu traz Novo voo, Voos planejados, Imprimir voo e Sair. A tela estreita é uma coluna."
 
+## Clarifications
+
+### Session 2026-11-24
+
+- Q: A ficha do plano e a lista de voos ficam no papel branco ou no vidro? → A: Todos os cards usam o mesmo vidro azul acinzentado, com texto branco.
+- Q: Quanto o vidro desfoca a planta atrás do card? → A: Desfoque médio de 12 px, além dos 82% de opacidade.
+- Q: O que fazer com texto longo e tabela larga em tela estreita? → A: O texto quebra a linha dentro do card, e a tabela larga rola na horizontal dentro do próprio card. A página não rola.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Reconhecer o produto em qualquer tela (Priority: P1)
@@ -95,8 +103,8 @@ Acima das fichas de trecho, um card resume o voo inteiro. Cada linha nomeia um t
 ### Functional Requirements
 
 - **FR-001**: Toda tela MUST mostrar a planta da pista e da torre como fundo e o emblema Plano de Voo como único logo.
-- **FR-002**: As cores visíveis MUST ser as do emblema: azul escuro, azul claro, amarelo e branco. O card MUST ser azul acinzentado, de cantos arredondados, e MUST deixar a planta perceptível atrás dele.
-- **FR-003**: Abaixo de 720 px, a tela MUST ser uma coluna. O menu MUST quebrar a linha. As abas das fichas MUST rolar na horizontal. A página MUST NOT exigir rolagem horizontal. De 720 px para cima, o card de entrada e o de plano novo MUST ficar centrados, sem ocupar a largura inteira da janela.
+- **FR-002**: As cores visíveis MUST ser as do emblema: azul escuro, azul claro, amarelo e branco. Todo card, inclusive a ficha do plano e a lista de voos planejados, MUST ser do mesmo vidro azul acinzentado, de cantos arredondados, com texto branco. O vidro MUST desfocar a planta atrás dele em 12 px e MUST deixá-la perceptível.
+- **FR-003**: Abaixo de 720 px, a tela MUST ser uma coluna. O menu MUST quebrar a linha. As abas das fichas MUST rolar na horizontal. A página MUST NOT exigir rolagem horizontal. Nenhum texto MUST sair do card: o texto longo quebra a linha, e a tabela larga rola na horizontal dentro do próprio card. De 720 px para cima, o card de entrada e o de plano novo MUST ficar centrados, sem ocupar a largura inteira da janela.
 - **FR-004**: A entrada e o cadastro MUST usar o mesmo card central, com o emblema. Essas duas telas MUST NOT mostrar o menu de voo. A recusa de entrada MUST usar a mesma frase para identificação inexistente e senha errada.
 - **FR-005**: Depois de entrar, o plano novo MUST ser um card central com os sete campos já exigidos, nesta ordem: tipo de avião, origem, destino, data e hora, número de passageiros, peso das pessoas e peso da bagagem. O card MUST NOT pedir combustível a bordo nem peso de piloto separado. A frase de que o resultado apoia o planejamento e não autoriza o voo MUST estar visível sem um clique.
 - **FR-006**: Ao pedir o cálculo, o card MUST deixar de estar visível. A tela MUST mostrar uma ampulheta em movimento e a frase "Em processamento" até a resposta.
@@ -118,7 +126,7 @@ Acima das fichas de trecho, um card resume o voo inteiro. Cada linha nomeia um t
 
 ## Assumptions
 
-- O desenho fechado em `_bmad-output/planning-artifacts/ux-designs/ux-Plano de voo-2026-11-24/` é a referência visual. O vidro usa 82% de opacidade e o véu sobre a planta usa 35%. A especificação manda o piloto perceber a planta atrás do card. Esses dois percentuais são a medida acordada.
+- O desenho fechado em `_bmad-output/planning-artifacts/ux-designs/ux-Plano de voo-2026-11-24/` é a referência visual. O vidro usa 82% de opacidade e desfoque de 12 px, e o véu sobre a planta usa 35%. A especificação manda o piloto perceber a planta atrás do card. Esses dois percentuais são a medida acordada.
 - 720 px é o corte entre a coluna estreita e o card centrado.
 - A ampulheta usa o amarelo do emblema. A frase exata é "Em processamento".
 - A frase exata sem plano aberto é "Não há voo para imprimir."

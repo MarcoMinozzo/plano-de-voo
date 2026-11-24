@@ -4,6 +4,7 @@
 <section class="leitura">
 <h1>Seus planos</h1>
 <p><a href="{{ url_for('novo_plano') }}">Novo plano</a></p>
+<div class="rolagem">
 <table>
     <thead><tr><th>Origem</th><th>Destino</th><th>Partida</th><th>Estado</th></tr></thead>
     <tbody>
@@ -19,5 +20,6 @@
     {% endfor %}
     </tbody>
 </table>
+</div>
 </section>
 {% endblock %}

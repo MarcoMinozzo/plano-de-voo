@@ -34,6 +34,7 @@
 {% if trecho.combustivel_unidade != base.combustivel_unidade %}{% set ns.comb = false %}{% endif %}
 {% endfor %}
 <h2>Trechos</h2>
+<div class="rolagem larga">
 <table>
     <caption>Distância: {{ base.distancia_fonte }}. Proa: {{ base.proa_fonte }}. Tempo: {{ base.tempo_fonte }}. Combustível: {{ base.combustivel_fonte }}.</caption>
     <thead>
@@ -62,8 +63,10 @@
     {% endfor %}
     </tbody>
 </table>
+</div>
 {% endif %}
 {% if plano.resultado.linhas %}
+<div class="rolagem larga">
 <table>
     <thead><tr><th>Grandeza</th><th>Valor</th><th>Unidade</th><th>Fonte</th></tr></thead>
     <tbody>
@@ -77,6 +80,7 @@
     {% endfor %}
     </tbody>
 </table>
+</div>
 {% endif %}
 {% set tempo_ok = boletins %}
 {% set vento_ok = plano.vento.estado == "disponivel" %}
