@@ -103,3 +103,18 @@ def test_vento_disponivel_publica_a_fonte_do_produto():
     solo = next(linha for linha in conta["linhas"] if linha["nome"] == "Velocidade em relação ao solo")
     assert solo["fonte"] == "REDEMET área SBCW"
     assert solo["unidade"] == "kt"
+
+
+def _peso_combustivel(conta):
+    return next(linha for linha in conta["linhas"] if linha["nome"] == "Peso de combustível")
+
+
+def test_peso_do_combustivel_usa_a_massa_por_galao_do_manual():
+    origem, destino = aerodromo("SBJD", -23.18, -46.94), aerodromo("SBAU", -21.14, -50.42)
+    particulares = {"peso_pessoas_kg": 80, "peso_bagagem_kg": 5}
+    querosene = _peso_combustivel(calcular(aeronave_minima(combustivel_kg_por_gal=3.0), origem, destino, particulares))
+    assert querosene["valor"] == 66.0
+    assert querosene["fonte"] == "manual de teste"
+    avgas = _peso_combustivel(calcular(aeronave_minima(), origem, destino, particulares))
+    assert avgas["valor"] == round(22.0 * 2.72, 1)
+    assert "2,72 kg/gal" in avgas["fonte"]
