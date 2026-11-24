@@ -32,5 +32,6 @@
 ## Notes
 
 - A spec cita o ROTAER, o Registro Aeronáutico Brasileiro e o RBAC como normas e publicações, não como escolha de biblioteca.
-- O corte de 80% da frota está nas Assumptions e no FR-004. É a leitura de "principalmente as mais usadas" enquanto o manual de cada modelo não cabe numa única carga.
+- O corte de 80% da frota estava nas Assumptions e no FR-004; a clarificação de 2026-11-24 o trocou pelos 20 modelos de maior frota. É a leitura de "principalmente as mais usadas" enquanto o manual de cada modelo não cabe numa única carga.
 - Validação em 2026-10-21: os 16 itens passam.
+- Revalidação em 2026-11-24, após a clarificação: os 16 itens continuam passando. FR-004, FR-005 e SC-002 ganharam os 20 modelos, a regra do experimental e a citação de documento e página.
