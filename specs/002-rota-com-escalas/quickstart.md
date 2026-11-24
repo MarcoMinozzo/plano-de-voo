@@ -14,7 +14,9 @@ Sem a chave, o catálogo nacional fica indisponível. Isso é o resultado espera
 
 1. Aplicar a migração nova.
 2. Carregar a emenda vigente do ROTAER. A conferência conta aeródromos de avião e verifica que um heliponto conhecido da emenda não entra na lista oferecida.
-3. Carregar o extrato do RAB. A conferência ordena pela frota e verifica que os modelos que somam 80% estão com manual gravado ou que o modelo sem manual é recusado pelo nome.
+3. Carregar o extrato do RAB. A conferência ordena pela frota.
+4. Rodar `python -m servidor.manuais`. A saída diz quantos arquivos gravou e nomeia cada arquivo recusado com o campo. Os 20 modelos de [research.md](./research.md#os-20-modelos) ficam `gravado`. Um experimental, como o RV-10, continua sem manual e é recusado pelo nome.
+5. Planejar um voo com um modelo de pistão e outro de turboélice. A ficha mostra a fonte com documento e página, e o peso do turboélice usa a massa por galão do manual.
 
 Não colar chave, senha nem número de manual neste arquivo.
 
