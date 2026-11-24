@@ -82,3 +82,28 @@ def test_menu_resumo_e_impressao(cliente):
     miolo = plano[resumo:trechos].lower()
     assert "técnica" not in miolo
     assert "arremeta" not in miolo
+
+
+def test_todo_card_no_vidro_esfumacado_sem_vazar(cliente):
+    entrada = _pagina(cliente, "/entrar")
+    assert "backdrop-filter: blur(12px)" in entrada
+    assert "rgba(28, 51, 72, 0.82)" in entrada
+    assert "box-sizing: border-box" in entrada
+    assert "rgba(244, 247, 251, 0.94)" not in entrada
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+    painel = _pagina(cliente, "/painel")
+    assert 'class="rolagem"' in painel
+    plano = _pagina(cliente, f"/planos/{plano_id}")
+    assert plano.count('class="rolagem larga"') >= 1
+    inicio = plano.index('class="rolagem larga"')
+    assert plano.index("<table>", inicio) > inicio
+
+
+def test_aviso_de_impressao_so_ao_pedir(cliente):
+    cadastrar(cliente)
+    novo = _pagina(cliente, "/planos/novo")
+    assert 'href="#sem-voo"' in novo
+    assert "#sem-voo { display: none" in novo
+    assert "#sem-voo:target { display: block; }" in novo
