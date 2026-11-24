@@ -1,0 +1,16 @@
+[workflow]
+persistent_facts = [
+  "file:{project-root}/_bmad/custom/convivencia-speckit.md",
+]
+
+# O subagente de implementação nasce sem a conversa anterior. A fronteira
+# com o Spec Kit precisa estar no próprio pedido.
+implementation_handoff = """
+Launch a subagent with no prior conversation context, with this prompt:
+
+> Read {spec_file} fully. Before editing anything, also read .specify/memory/constitution.md and _bmad/custom/convivencia-speckit.md. Load every file listed in the spec frontmatter `context:`.
+>
+> Product behavior the pilot sees is implemented only from an unmarked task in specs/ (Spec Kit). If this BMad spec is not already a task there, stop and report that speckit-specify, speckit-plan, and speckit-tasks must run first. Do not edit servidor/, templates/, static/, specs/, .specify/, or .cursor/.
+>
+> A fix that does not change observable pilot behavior may be implemented directly. When done, report what you changed, how you verified it, and anything left incomplete or risky.
+"""

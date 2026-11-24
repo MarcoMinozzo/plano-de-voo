@@ -21,11 +21,12 @@ def _url_teste():
 os.environ["DATABASE_URL"] = _url_teste()
 os.environ["SECRET_KEY"] = "teste-sessao"
 os.environ["COOKIE_SECURE"] = "0"
+os.environ["PLANO_CONSULTAR_SOL"] = "0"
 
 import pytest
 
 from app import criar_app
-from servidor.modelos import Base, Sessao, configurar
+from servidor.modelos import Aerodromo, Base, EmendaRotaer, Sessao, agora, configurar
 from servidor.semente import semear
 
 JSON = {"Accept": "application/json"}
@@ -39,6 +40,18 @@ def cliente():
     Base.metadata.create_all(engine)
     db = Sessao()
     semear(db)
+    emenda = EmendaRotaer(
+        codigo_emenda="semente-teste",
+        vigente=True,
+        carregada_em=agora(),
+        estado="disponivel",
+    )
+    db.add(emenda)
+    db.flush()
+    for aero in db.query(Aerodromo).all():
+        aero.tipo = "aerodromo"
+        aero.emenda_id = emenda.id
+    db.commit()
     Sessao.remove()
     with aplicacao.test_client() as c:
         yield c
@@ -61,11 +74,9 @@ def plano_valido(**extra):
         "origem": "SBJD",
         "destino": "SBAU",
         "hora_partida": "2026-12-01T12:00:00+00:00",
-        "ocupantes": 1,
-        "peso_piloto_kg": 80,
-        "peso_passageiro_kg": 0,
+        "numero_passageiros": 1,
+        "peso_pessoas_kg": 80,
         "peso_bagagem_kg": 5,
-        "combustivel_a_bordo_gal": 15,
     }
     dados.update(extra)
     return dados

@@ -5,9 +5,9 @@ alwaysApply: true
 
 # Spec Kit neste repositório
 
-O projeto se chama Plano de voo. A constituição em `.specify/memory/constitution.md` prevalece (versão 2.2.0). As skills oficiais estão em `.cursor/skills/`. Não reescreva essas skills, nem `.specify/templates/` ou `.specify/scripts/`.
+O projeto se chama Plano de voo. A constituição em `.specify/memory/constitution.md` prevalece (versão 2.2.0). As skills oficiais estão em `.cursor/skills/` para o Cursor e em `.devin/skills/` para o Devin. Não reescreva essas skills, nem `.specify/templates/` ou `.specify/scripts/`.
 
-A spec ativa é `specs/002-rota-com-escalas/`. `specs/001-planejar-voo-visual/` é o plano direto já construído. Comportamento novo segue esta ordem, um passo por vez:
+A spec ativa é `specs/005-aplicar-casca-visual/`. `specs/004-enxugar-tela-piloto/` enxuga a tela do piloto. `specs/003-clarear-tela-piloto/` é a tela já clareada. `specs/002-rota-com-escalas/` é a rota com escalas. `specs/001-planejar-voo-visual/` é o plano direto já construído. Comportamento novo segue esta ordem, um passo por vez:
 
 1. `speckit-constitution` — princípios do projeto; só de novo se um princípio mudar
 2. `speckit-specify` — escreve a especificação
@@ -21,3 +21,17 @@ Antes de editar o servidor, `templates/` ou `static/`, leia a spec em `.specify/
 O banco do produto é PostgreSQL. Cálculo de voo, PDF, meteorologia, vento, carta e radar ficam no servidor. A interface permanece em português, com unidade e fonte explícitas, e continua avisando que o painel não substitui o manual nem a norma. Fonte sem dado mostra indisponível. Chave de REDEMET e AISWEB fica fora do repositório. Um piloto só vê o próprio plano.
 
 A senha tem no mínimo 8 caracteres. Cinco recusas em 15 minutos bloqueiam a identificação por 15 minutos, com a mesma mensagem de identificação inexistente. A sessão encerra ao sair e após 8 horas sem uso. A orientação do piloto está em `documentacao/piloto.md`. A operação está em `documentacao/operacao.md`, sem segredo.
+
+## Devin ao lado do Cursor
+
+O Devin lê esta regra a partir de `AGENTS.md`. As skills `speckit-*` do Devin ficam em `.devin/skills/` e são iguais às do Cursor. Chame cada uma pelo nome, por exemplo `/speckit-specify`. Para atualizá-las, use `specify integration upgrade devin`.
+
+`.specify/feature.json` fica fora do repositório. Se ele não existir no checkout, crie-o com `{"feature_directory":"specs/005-aplicar-casca-visual"}`, a spec ativa acima, antes de chamar uma skill.
+
+O Devin na nuvem só vê o que está no GitHub. Cada passo do Spec Kit feito pelo Devin vai num pull request próprio, com o artefato gerado na descrição. Antes de `speckit-implement`, o Devin espera o Marco aprovar a spec, o plano e as tarefas. No pull request de implementação, o Devin lista as tarefas marcadas e roda `pytest`. Dúvida sobre requisito vai para o Marco ou para `speckit-clarify`.
+
+## BMAD ao lado do Spec Kit
+
+O BMAD Method 6.12 está instalado para conversa, brief, PRD, arquitetura e revisão. As skills `bmad-*` ficam em `.agents/skills/`. A configuração fica em `_bmad/`. A saída fica em `_bmad-output/`, inclusive `_bmad-output/specs/`.
+
+A constituição e as skills `speckit-*` continuam sendo o contrato do produto. Um fluxo BMAD não altera `.specify/`, `.cursor/skills/speckit-*`, `.devin/skills/speckit-*` nem esta regra. Brief, PRD ou spec do BMAD preparam a mudança; comportamento que o piloto vê ainda entra por `speckit-specify`, `speckit-plan`, `speckit-tasks` e `speckit-implement`. `bmad-build` e `bmad-build-auto` não editam `servidor/`, `templates/` nem `static/` para mudança observável. Correção que não muda o que o piloto vê pode ir direto ao código. `bmad-project-context` não reescreve a constituição; se criar `AGENTS.md`, esse arquivo só aponta para a constituição e para esta regra.

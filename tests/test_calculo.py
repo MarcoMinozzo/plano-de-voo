@@ -31,10 +31,8 @@ def test_grandeza_tem_unidade_e_fonte():
         aerodromo("SBJD", -23.18, -46.94),
         aerodromo("SBAU", -21.14, -50.42),
         {
-            "peso_piloto_kg": 80,
-            "peso_passageiro_kg": 0,
+            "peso_pessoas_kg": 80,
             "peso_bagagem_kg": 5,
-            "combustivel_a_bordo_gal": 15,
         },
     )
     assert conta["grava"] is True
@@ -47,7 +45,7 @@ def test_peso_acima_de_658_inaceitavel(cliente):
     cadastrar(cliente)
     resposta = cliente.post(
         "/planos",
-        json=plano_valido(peso_piloto_kg=300, peso_passageiro_kg=200),
+        json=plano_valido(peso_pessoas_kg=500),
         headers=JSON,
     )
     corpo = resposta.get_json()
@@ -70,11 +68,38 @@ def test_manual_incompleto_nao_grava():
         aerodromo("SBJD", -23.18, -46.94),
         aerodromo("SBAU", -21.14, -50.42),
         {
-            "peso_piloto_kg": 80,
-            "peso_passageiro_kg": 0,
+            "peso_pessoas_kg": 80,
             "peso_bagagem_kg": 5,
-            "combustivel_a_bordo_gal": 15,
         },
     )
     assert conta["grava"] is False
     assert conta["erro"] == "velocidade_valor"
+
+
+def test_sem_vento_nao_publica_velocidade_de_solo():
+    conta = calcular(
+        aeronave_minima(),
+        aerodromo("SBJD", -23.18, -46.94),
+        aerodromo("SBAU", -21.14, -50.42),
+        {
+            "peso_pessoas_kg": 80,
+            "peso_bagagem_kg": 5,
+        },
+    )
+    assert all(linha["nome"] != "Velocidade em relação ao solo" for linha in conta["linhas"])
+
+
+def test_vento_disponivel_publica_a_fonte_do_produto():
+    conta = calcular(
+        aeronave_minima(),
+        aerodromo("SBJD", -23.18, -46.94),
+        aerodromo("SBAU", -21.14, -50.42),
+        {
+            "peso_pessoas_kg": 80,
+            "peso_bagagem_kg": 5,
+        },
+        {"estado": "disponivel", "direcao_de_graus": 90, "velocidade_kt": 20, "fonte": "REDEMET área SBCW"},
+    )
+    solo = next(linha for linha in conta["linhas"] if linha["nome"] == "Velocidade em relação ao solo")
+    assert solo["fonte"] == "REDEMET área SBCW"
+    assert solo["unidade"] == "kt"

@@ -10,9 +10,20 @@ from servidor.auth import (
     entrar,
     sessao_expirada,
 )
+from servidor.catalogo import aerodromos_oferecidos, correspondencias, lugares_da_tela, modelos_visiveis
 from servidor.modelos import Aeronave, Aerodromo, Sessao, agora, configurar
-from servidor.pdf_plano import gerar_pdf, ler_orientacao
-from servidor.planos import apagar, do_piloto, listar, marcar_item, montar, para_json
+from servidor.pdf_plano import gerar_pdf, ler_orientacao, rotulo_lido
+from servidor.tempo import linhas_boletim
+from servidor.planos import (
+    apagar,
+    do_piloto,
+    hora_ja_passou,
+    listar,
+    marcar_item,
+    montar,
+    para_json,
+    valores_do_plano,
+)
 
 
 def _visto(valor):
@@ -32,6 +43,7 @@ def criar_app():
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["SESSION_COOKIE_SECURE"] = os.environ.get("COOKIE_SECURE", "0") == "1"
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
+    app.add_template_global(rotulo_lido)
     configurar(os.environ["DATABASE_URL"])
 
     @app.before_request
@@ -66,6 +78,46 @@ def criar_app():
         session.permanent = True
         session["piloto_id"] = piloto.id
         session["visto_em"] = agora().isoformat()
+
+    def catalogo_da_tela():
+        estado_aero, aerodromos = lugares_da_tela(g.db)
+        _estado_modelo, modelos = modelos_visiveis(g.db)
+        return estado_aero, aerodromos, modelos
+
+    def informado_de(dados):
+        if not dados:
+            return {}
+        bruto = dados.to_dict(flat=True) if hasattr(dados, "to_dict") else dict(dados)
+        chaves = (
+            "aeronave_id",
+            "origem",
+            "destino",
+            "hora_partida",
+            "numero_passageiros",
+            "peso_pessoas_kg",
+            "peso_bagagem_kg",
+            "confirmar_hora",
+        )
+        saida = {}
+        for chave in chaves:
+            valor = bruto.get(chave, "")
+            saida[chave] = "" if valor is None else valor
+        return saida
+
+    def tela_plano(mensagem, dados, action=None):
+        estado_aero, aerodromos, aeronaves = catalogo_da_tela()
+        informado = informado_de(dados)
+        return render_template(
+            "plano_novo.html",
+            mensagem=mensagem,
+            aeronaves=aeronaves,
+            aerodromos=aerodromos,
+            catalogo_estado=estado_aero,
+            orientacao=ler_orientacao(),
+            informado=informado,
+            mostrar_confirmacao=hora_ja_passou(informado.get("hora_partida")),
+            action=action,
+        )
 
     def exigir():
         piloto = piloto_logado()
@@ -147,10 +199,9 @@ def criar_app():
         dados = request.get_json(silent=True) or request.form
         plano, erro = montar(g.db, piloto, dados)
         if erro:
-            aeronaves = g.db.query(Aeronave).order_by(Aeronave.nome).all()
             if quer_json():
                 return jsonify({"mensagem": erro}), 400
-            return render_template("plano_novo.html", mensagem=erro, aeronaves=aeronaves, orientacao=ler_orientacao()), 400
+            return tela_plano(erro, dados), 400
         if quer_json():
             return jsonify(para_json(plano)), 201
         return redirect(url_for("ver_plano", plano_id=plano.id))
@@ -160,8 +211,30 @@ def criar_app():
         piloto, resposta = exigir()
         if piloto is None:
             return resposta
-        aeronaves = g.db.query(Aeronave).order_by(Aeronave.nome).all()
-        return render_template("plano_novo.html", aeronaves=aeronaves, orientacao=ler_orientacao())
+        return tela_plano(None, {})
+
+    @app.route("/planos/<int:plano_id>/alterar", methods=["GET", "POST"])
+    def alterar_plano(plano_id):
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        plano = do_piloto(g.db, piloto.id, plano_id)
+        if plano is None:
+            if quer_json():
+                return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
+            return render_template("recusa.html"), 404
+        action = url_for("alterar_plano", plano_id=plano.id)
+        if request.method == "GET":
+            return tela_plano(None, valores_do_plano(plano), action)
+        dados = request.get_json(silent=True) or request.form
+        atualizado, erro = montar(g.db, piloto, dados, plano)
+        if erro:
+            if quer_json():
+                return jsonify({"mensagem": erro}), 400
+            return tela_plano(erro, dados, action), 400
+        if quer_json():
+            return jsonify(para_json(atualizado))
+        return redirect(url_for("ver_plano", plano_id=atualizado.id))
 
     @app.route("/planos/<int:plano_id>", methods=["GET", "PUT"])
     def ver_plano(plano_id):
@@ -185,16 +258,23 @@ def criar_app():
                 return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
             return render_template("recusa.html"), 404
         aeronave = g.db.get(Aeronave, plano.aeronave_id)
-        origem = g.db.get(Aerodromo, plano.origem_icao)
-        destino = g.db.get(Aerodromo, plano.destino_icao)
+        pontos = []
+        for trecho in plano.trechos:
+            saida = g.db.get(Aerodromo, trecho.origem_icao)
+            chegada = g.db.get(Aerodromo, trecho.destino_icao)
+            if saida is None or chegada is None:
+                continue
+            if not pontos:
+                pontos.append([saida.lat, saida.lon])
+            pontos.append([chegada.lat, chegada.lon])
         if quer_json():
             return jsonify(para_json(plano))
         return render_template(
             "plano.html",
             plano=plano,
             aeronave=aeronave,
-            origem=origem,
-            destino=destino,
+            pontos=pontos,
+            boletins=linhas_boletim(plano.meteorologia),
             orientacao=ler_orientacao(),
         )
 
@@ -224,7 +304,7 @@ def criar_app():
             return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
         if quer_json():
             return jsonify({"id": item.id, "marcado": item.marcado})
-        return redirect(url_for("ver_plano", plano_id=plano_id))
+        return redirect(url_for("ver_plano", plano_id=plano_id, _anchor=f"item-{item.id}"))
 
     @app.get("/planos/<int:plano_id>/pdf")
     def pdf(plano_id):
@@ -236,21 +316,47 @@ def criar_app():
             return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
         return gerar_pdf(plano), 200, {"Content-Type": "application/pdf"}
 
+    @app.get("/aerodromos")
+    def aerodromos():
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        estado, lista = aerodromos_oferecidos(g.db)
+        if request.args.get("q") is not None:
+            estado, lista = correspondencias(g.db, request.args.get("q"))
+        return jsonify(
+            {
+                "estado": estado,
+                "aerodromos": [
+                    {"identificador": aero.icao, "nome": aero.nome, "fonte": aero.fonte}
+                    for aero in lista
+                ],
+            }
+        )
+
     @app.get("/aeronaves")
     def aeronaves():
         piloto, resposta = exigir()
         if piloto is None:
             return resposta
-        lista = g.db.query(Aeronave).order_by(Aeronave.nome).all()
-        return jsonify([
-            {
-                "id": a.id,
-                "nome": a.nome,
-                "fonte_manual": a.fonte_manual,
-                "peso_max_decolagem_kg": a.peso_max_decolagem_kg,
+        estado, lista = modelos_visiveis(g.db)
+        modelos = []
+        for aeronave in lista:
+            item = {
+                "id": aeronave.id,
+                "nome": aeronave.nome,
+                "frota": aeronave.frota,
+                "manual_estado": aeronave.manual_estado,
             }
-            for a in lista
-        ])
+            if aeronave.manual_estado == "gravado":
+                item["fonte_manual"] = aeronave.fonte_manual
+            modelos.append(item)
+        corpo = {"estado": estado, "modelos": modelos}
+        if estado == "indisponivel":
+            corpo["observacao"] = (
+                "O registro nacional está indisponível. Esta lista não é o registro inteiro."
+            )
+        return jsonify(corpo)
 
     return app
 

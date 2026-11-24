@@ -201,3 +201,7 @@ O catálogo nacional de aeródromos, o catálogo de aviões pequenos e a rota co
 - O acesso desta versão é identificação e senha, sem segundo fator. A senha tem no mínimo 8 caracteres. Cinco recusas em 15 minutos bloqueiam a identificação por 15 minutos. A sessão cai ao sair e após 8 horas sem uso. Recuperação de senha e acesso compartilhado ficam fora.
 - Um plano gravado guarda a origem, o destino, a hora, a aeronave, os dados particulares e o resultado. Ao editar, tempo, vento, carta e radar são consultados de novo.
 - O resultado continua sendo apoio ao planejamento. Não substitui o manual, o treinamento nem a norma, e não autoriza o voo.
+
+## Review
+
+A validação de requisitos de negócio e os testes funcionais são a sexta porta futura da suíte de revisão, registrada em `specs/revisao-codigo-pronto/tasks.md`. Esta menção não executa essa porta.
