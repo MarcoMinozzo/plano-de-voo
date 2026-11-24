@@ -72,3 +72,27 @@ Perna calculada. Não é editada pelo piloto.
 Além dos campos já gravados, o plano guarda `rota_estado` (`aceitavel` ou `inaceitavel`), o motivo quando for inaceitável, e a frase da hipótese de reabastecimento com a fonte do manual. `origem` e `destino` continuam sendo o primeiro e o último aeródromo da rota.
 
 Apagar o plano apaga os trechos. Outro piloto não lê a rota.
+
+## Revisão de 2026-11-24
+
+### ModeloAviao
+
+| Campo | Regra |
+| --- | --- |
+| combustivel_kg_por_gal | Opcional. Massa do combustível por galão escrita no manual. Sem ela, o cálculo usa 2,72 kg/gal de avgas |
+| fonte_manual | Quando o manual vem de `servidor/manuais/`, cita fabricante, título, número, revisão, a página de cada número, a condição de cruzeiro e o endereço da cópia pública |
+
+Os números continuam existindo uma vez, no registro do modelo. O arquivo JSON é a origem revisada desse registro, não uma segunda cópia usada pelo cálculo.
+
+### RegistroManual (arquivo)
+
+Um arquivo por modelo em `servidor/manuais/`. O formato está em [contracts/registro-manual.md](./contracts/registro-manual.md).
+
+| Regra | Efeito |
+| --- | --- |
+| `modelo_rab` igual ao nome do extrato, sem diferença de maiúscula | Grava nesse modelo; se ele ainda não existe, cria com frota 0 |
+| `experimental` verdadeiro | Recusado: experimental fica sem manual |
+| Falta campo, página ou unidade conhecida | Recusado pelo nome do campo |
+| Máximo de decolagem acima de 5.670 kg, ou vazio igual ou maior que o máximo | Recusado |
+
+Estado do modelo: `ausente` → `gravado` quando o arquivo passa. Arquivo recusado mantém o estado anterior.
