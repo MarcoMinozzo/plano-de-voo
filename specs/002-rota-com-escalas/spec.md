@@ -8,6 +8,15 @@
 
 **Input**: User description: "Devemos ter todos os aeródromos brasileiros cadastrados. Devemos ter todas as aeronaves de pequeno porte cadastradas, principalmente as mais usadas. O sistema deve otimizar e escolher a melhor rota a partir da origem e do destino e calcular todas as escalas necessárias, com base na documentação oficial e nas melhores práticas de voo."
 
+## Clarifications
+
+### Session 2026-11-24
+
+- Q: De onde vêm os números de cada manual? → A: De manuais oficiais públicos do fabricante. Cada número cita o documento e a página, e o piloto responsável revisa cada lote antes de ele entrar no produto.
+- Q: Quantos modelos recebem manual agora? → A: Só os 20 modelos de maior frota do registro. A meta de 80% da frota será revista depois.
+- Q: O que fazer com avião experimental, de kit? → A: Fica sem manual, e o cálculo é recusado pelo nome. O próximo modelo da frota entra no lugar, para manter 20 modelos com manual.
+- Q: Onde fica o registro do manual? → A: Num registro por modelo, guardado com o projeto e revisado antes de entrar. Uma carga leva esse registro ao banco do produto, de onde o cálculo lê.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Usar qualquer aeródromo brasileiro (Priority: P1)
@@ -93,8 +102,8 @@ Na tela e no PDF o piloto vê cada trecho, a hipótese de reabastecer em cada es
 - **FR-001**: O sistema MUST oferecer como origem, destino e escala os aeródromos de avião da emenda vigente da publicação oficial brasileira de aeródromos. Heliponto MUST NOT entrar.
 - **FR-002**: Cada aeródromo MUST guardar identificador publicado, nome, coordenada, elevação e a emenda de onde saiu. Sem essa publicação, o catálogo nacional MUST ficar indisponível e MUST NOT ser completado com valor estimado.
 - **FR-003**: O sistema MUST oferecer os modelos de avião pequeno presentes no registro público de aeronaves. Avião pequeno é o de peso máximo de decolagem aprovado igual ou inferior a 5.670 kg. A lista MUST ordenar pelo número de aeronaves do modelo nesse registro, do maior para o menor.
-- **FR-004**: Os modelos que, nessa ordem, somam pelo menos 80% das aeronaves de avião pequeno do registro MUST ter o manual oficial gravado. Os demais modelos do registro MUST aparecer, e MUST NOT ser calculados enquanto o manual não estiver gravado.
-- **FR-005**: Número de navegação, limite e combustível de planejamento MUST vir do manual oficial do modelo escolhido. Modelo sem manual MUST impedir o cálculo e MUST dizer qual manual falta.
+- **FR-004**: Os 20 primeiros modelos do registro, na ordem da frota, MUST ter o manual oficial gravado. Avião experimental não tem manual oficial do fabricante: ele MUST ficar sem manual, e o modelo seguinte da frota MUST entrar no lugar. Os demais modelos do registro MUST aparecer, e MUST NOT ser calculados enquanto o manual não estiver gravado. A meta de 80% da frota fica para revisão futura.
+- **FR-005**: Número de navegação, limite e combustível de planejamento MUST vir do manual oficial do modelo escolhido. Cada número MUST citar o documento público do fabricante e a página. Modelo sem manual MUST impedir o cálculo e MUST dizer qual manual falta.
 - **FR-006**: O piloto MUST informar origem, destino, hora de partida e os dados particulares do voo. O sistema MUST escolher a rota e as escalas. O piloto MUST NOT precisar indicar a escala.
 - **FR-007**: Cada trecho MUST ter combustível para chegar ao pouso do trecho e mais 30 minutos em cruzeiro, como exige o voo visual diurno. O vento só entra na conta quando a fonte oficial de vento cobrir aquele trecho.
 - **FR-008**: Entre as rotas em que todos os trechos cumprem o manual, a reserva diurna e o pôr do sol quando ele for conhecido, o sistema MUST escolher a de menor tempo total de voo. Empate de tempo MUST ficar com a rota de menos escalas. Novo empate MUST ficar com a de menor distância.
@@ -116,7 +125,7 @@ Na tela e no PDF o piloto vê cada trecho, a hipótese de reabastecer em cada es
 ### Measurable Outcomes
 
 - **SC-001**: Com a publicação vigente disponível, a lista de origens tem todos os aeródromos de avião dessa emenda e nenhum heliponto.
-- **SC-002**: Com o registro de aeronaves disponível, a lista de modelos tem todos os aviões pequenos desse registro, ordenados pela frota. Os modelos que somam pelo menos 80% dessa frota calculam o plano com números do manual. Os outros aparecem e o cálculo recusa, nomeando o manual que falta.
+- **SC-002**: Com o registro de aeronaves disponível, a lista de modelos tem todos os aviões pequenos desse registro, ordenados pela frota. Os 20 primeiros modelos com manual oficial, na ordem da frota, calculam o plano com números do manual. Os outros aparecem e o cálculo recusa, nomeando o manual que falta.
 - **SC-003**: Quando o direto cabe na reserva diurna, a rota entregue tem um trecho. Quando não cabe e existe escala possível, cada trecho cabe na reserva e a rota é a de menor tempo total. Quando não existe, o plano fica inaceitável e diz o motivo.
 - **SC-004**: Em 100% das grandezas da rota, na tela e no PDF, há unidade e fonte. Em 100% das falhas de publicação, vento, pôr do sol ou manual, o item fica indisponível ou recusado, sem valor inventado.
 - **SC-005**: O PDF de uma rota com escala lista os trechos na ordem, a hipótese de reabastecimento e o aviso de que o documento não autoriza o voo.
@@ -125,10 +134,11 @@ Na tela e no PDF o piloto vê cada trecho, a hipótese de reabastecer em cada es
 
 - O voo continua visual e diurno. Voo noturno, voo por instrumentos, helicóptero e o envio do plano ao órgão de controle ficam de fora. A rota é apoio ao planejamento, não autorização e não protocolo.
 - A publicação oficial de aeródromos é a emenda vigente do ROTAER. O registro oficial de aeronaves é o extrato público do Registro Aeronáutico Brasileiro. A reserva de 30 minutos é a do RBAC nº 91, seção 91.151, para avião em voo visual diurno. O porte de 5.670 kg é o de pequena aeronave no RBAC nº 01.
-- "Todas as aeronaves, principalmente as mais usadas" significa todos os modelos de avião pequeno do registro, com manual obrigatório primeiro para o conjunto que soma 80% da frota. Não significa lançar cada matrícula, nem copiar número de um modelo para outro.
+- "Todas as aeronaves, principalmente as mais usadas" significa todos os modelos de avião pequeno do registro, com manual obrigatório primeiro para os 20 modelos de maior frota que têm manual oficial. A meta de 80% da frota será revista depois. Não significa lançar cada matrícula, nem copiar número de um modelo para outro.
 - Na escala, a hipótese de planejamento é reabastecer até o combustível de planejamento escrito no manual. O piloto vê essa hipótese. Não é um lançamento de combustível real no pátio.
 - O pôr do sol usado é o do aeródromo de chegada do trecho, na data da partida. Se essa hora não vier da fonte, o plano não afirma que o trecho cabe no dia.
 - O acesso, o isolamento entre pilotos, o checklist e a impressão já especificados no plano direto continuam valendo. Esta especificação acrescenta o catálogo nacional e a rota com escalas.
+- O manual de cada modelo entra num registro guardado com o projeto, com valor, unidade, documento e página de cada número. O piloto responsável revisa esse registro antes de ele entrar no banco do produto.
 - Os sete indicativos e o manual do Cessna 140 já gravados permanecem. Eles não substituem o catálogo nacional.
 
 ## Review
