@@ -130,3 +130,7 @@ Na tela e no PDF o piloto vê cada trecho, a hipótese de reabastecer em cada es
 - O pôr do sol usado é o do aeródromo de chegada do trecho, na data da partida. Se essa hora não vier da fonte, o plano não afirma que o trecho cabe no dia.
 - O acesso, o isolamento entre pilotos, o checklist e a impressão já especificados no plano direto continuam valendo. Esta especificação acrescenta o catálogo nacional e a rota com escalas.
 - Os sete indicativos e o manual do Cessna 140 já gravados permanecem. Eles não substituem o catálogo nacional.
+
+## Review
+
+A validação de requisitos de negócio e os testes funcionais são a sexta porta futura da suíte de revisão, registrada em `specs/revisao-codigo-pronto/tasks.md`. Esta menção não executa essa porta.

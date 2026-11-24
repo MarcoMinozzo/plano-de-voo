@@ -1,26 +1,133 @@
 {% extends "base.html" %}
-{% block titulo %}Novo plano{% endblock %}
+{% block titulo %}{% if action %}Alterar plano{% else %}Novo plano{% endif %}{% endblock %}
 {% block corpo %}
-<h1>Novo plano</h1>
+{% set info = informado or {} %}
+<section class="vidro" id="card-plano">
+<h1>{% if action %}Alterar plano{% else %}Novo plano{% endif %}</h1>
 {% if mensagem %}<p class="erro">{{ mensagem }}</p>{% endif %}
-<form method="post" action="{{ url_for('planos') }}">
-    <label>Aeronave
-        <select name="aeronave_id">
+{% if catalogo_estado == "local" %}
+<p>Lista local. Não é o catálogo do país inteiro.</p>
+{% elif catalogo_estado != "disponivel" %}
+<p>Catálogo nacional indisponível.</p>
+{% endif %}
+<form method="post" action="{{ action or url_for('planos') }}">
+    <label>Tipo de avião
+        <select name="aeronave_id" required>
             {% for aeronave in aeronaves %}
-            <option value="{{ aeronave.id }}">{{ aeronave.nome }}</option>
+            <option value="{{ aeronave.id }}" {% if info.aeronave_id|string == aeronave.id|string or (not info.aeronave_id and loop.first) %}selected{% endif %}>{{ aeronave.nome }}{% if aeronave.manual_estado == "ausente" %} — sem manual{% endif %}</option>
             {% endfor %}
         </select>
     </label>
-    <label>Origem <input name="origem" required maxlength="4"></label>
-    <label>Destino <input name="destino" required maxlength="4"></label>
-    <label>Hora de partida <input name="hora_partida" type="datetime-local" required></label>
-    <label>Ocupantes <input name="ocupantes" type="number" min="1" required></label>
-    <label>Peso do piloto (kg) <input name="peso_piloto_kg" type="number" step="0.1" required></label>
-    <label>Peso do passageiro (kg) <input name="peso_passageiro_kg" type="number" step="0.1" value="0" required></label>
-    <label>Bagagem (kg) <input name="peso_bagagem_kg" type="number" step="0.1" value="0" required></label>
-    <label>Combustível a bordo (gal) <input name="combustivel_a_bordo_gal" type="number" step="0.1" required></label>
-    <label><input name="confirmar_hora" type="checkbox" value="true"> A hora já passou e eu quero planejar mesmo assim</label>
+    {% if not aeronaves %}
+    <p>Nenhuma aeronave com manual gravado está disponível.</p>
+    {% endif %}
+    {% if aerodromos|length > 12 %}
+    <label>Filtrar origem
+        <input type="search" data-filtra="origem" placeholder="Identificador ou nome" autocomplete="off">
+    </label>
+    {% endif %}
+    <label>Origem
+        <select name="origem" id="origem" required>
+            {% for aero in aerodromos %}
+            <option value="{{ aero.icao }}" {% if info.origem == aero.icao or (not info.origem and loop.first) %}selected{% endif %}>{{ aero.icao }} — {{ aero.nome }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    {% if aerodromos|length > 12 %}
+    <label>Filtrar destino
+        <input type="search" data-filtra="destino" placeholder="Identificador ou nome" autocomplete="off">
+    </label>
+    {% endif %}
+    <label>Destino
+        <select name="destino" id="destino" required>
+            {% set destino_padrao = aerodromos[1].icao if aerodromos|length > 1 else (aerodromos[0].icao if aerodromos else "") %}
+            {% for aero in aerodromos %}
+            <option value="{{ aero.icao }}" {% if info.destino == aero.icao or (not info.destino and aero.icao == destino_padrao) %}selected{% endif %}>{{ aero.icao }} — {{ aero.nome }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>Data e hora <input name="hora_partida" type="datetime-local" value="{{ info.hora_partida or '' }}" required></label>
+    <div id="confirma-hora" {% if not mostrar_confirmacao %}hidden{% endif %}>
+        <label><input name="confirmar_hora" type="checkbox" value="true" {% if info.confirmar_hora %}checked{% endif %}> A hora já passou e eu quero planejar mesmo assim</label>
+    </div>
+    <label>Número de passageiros <input name="numero_passageiros" type="number" min="1" value="{{ info.numero_passageiros or '' }}" required></label>
+    <label>Peso das pessoas (kg) <input name="peso_pessoas_kg" type="number" step="0.1" min="0" value="{{ info.peso_pessoas_kg if info.peso_pessoas_kg is not none else '' }}" required></label>
+    <label>Peso da bagagem (kg) <input name="peso_bagagem_kg" type="number" step="0.1" min="0" value="{{ info.peso_bagagem_kg if info.peso_bagagem_kg is not none else '' }}" required></label>
     <button type="submit">Calcular</button>
 </form>
-<article class="aviso">{{ orientacao }}</article>
+<article class="aviso">Apoio ao planejamento. Não substitui o manual da aeronave, o treinamento de voo nem a norma vigente. Não é autorização de voo.</article>
+</section>
+<div class="ampulheta" id="espera" hidden>
+    <p>Em processamento</p>
+</div>
+{% if aerodromos|length > 12 %}
+<script>
+function planoCasa(texto, codigo, nome) {
+  function semAcento(valor) {
+    return valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  }
+  const busca = semAcento((texto || "").trim());
+  if (!busca) return true;
+  return semAcento(codigo).indexOf(busca) !== -1 || semAcento(nome).indexOf(busca) !== -1;
+}
+(function () {
+  document.querySelectorAll("[data-filtra]").forEach(function (filtro) {
+    const select = document.getElementById(filtro.getAttribute("data-filtra"));
+    if (!select) return;
+    const todas = Array.prototype.map.call(select.options, function (opcao) {
+      const partes = opcao.text.split(" — ");
+      return {value: opcao.value, text: opcao.text, codigo: partes[0], nome: partes.slice(1).join(" — ")};
+    });
+    filtro.addEventListener("input", function () {
+      const escolhido = select.value;
+      select.replaceChildren();
+      todas.forEach(function (item) {
+        if (!planoCasa(filtro.value, item.codigo, item.nome)) return;
+        const opcao = document.createElement("option");
+        opcao.value = item.value;
+        opcao.textContent = item.text;
+        if (item.value === escolhido) opcao.selected = true;
+        select.appendChild(opcao);
+      });
+      if (!select.value && select.options.length) select.selectedIndex = 0;
+    });
+  });
+})();
+</script>
+{% endif %}
+<script id="espera-voo">
+(function () {
+  const form = document.querySelector("#card-plano form");
+  const card = document.getElementById("card-plano");
+  const espera = document.getElementById("espera");
+  const menu = document.querySelector(".menu-voo");
+  if (!form || !card || !espera) return;
+  form.addEventListener("submit", function () {
+    card.hidden = true;
+    espera.hidden = false;
+    if (!menu) return;
+    menu.querySelectorAll("a, button").forEach(function (el) {
+      el.addEventListener("click", function (clique) { clique.preventDefault(); });
+    });
+  });
+})();
+</script>
+<script>
+(function () {
+  const hora = document.querySelector('[name="hora_partida"]');
+  const confirma = document.getElementById("confirma-hora");
+  const caixa = confirma ? confirma.querySelector("input") : null;
+  function atualizarHora() {
+    if (!hora || !confirma) return;
+    const informado = hora.value ? new Date(hora.value) : null;
+    const passou = informado && !Number.isNaN(informado.getTime()) && informado < new Date();
+    confirma.hidden = !passou;
+    if (!passou && caixa) caixa.checked = false;
+  }
+  if (hora) {
+    hora.addEventListener("input", atualizarHora);
+    hora.addEventListener("change", atualizarHora);
+  }
+})();
+</script>
 {% endblock %}

@@ -4,7 +4,21 @@ from pathlib import Path
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
+from servidor.tempo import linhas_boletim
+
 CAMINHO = Path(__file__).resolve().parent.parent / "documentacao" / "piloto.md"
+
+ROTULOS_LIDOS = {
+    "calculado": "aceitável para planejamento",
+    "inaceitavel": "não aceitável",
+    "aceitavel": "aceitável para planejamento",
+    "indisponivel": "indisponível",
+    "disponivel": "disponível",
+}
+
+
+def rotulo_lido(estado):
+    return ROTULOS_LIDOS.get(estado, estado or "")
 
 
 def ler_orientacao():
@@ -48,20 +62,41 @@ def gerar_pdf(plano):
         "Plano de voo",
         f"{plano.origem_icao} -> {plano.destino_icao}",
         f"Partida: {plano.hora_partida.isoformat()}",
-        f"Estado: {plano.estado}",
+        f"Estado: {rotulo_lido(plano.estado)}",
     ]
+    if plano.motivo:
+        linhas.append(f"Motivo: {plano.motivo}")
+    if plano.hipotese_reabastecimento:
+        linhas.append(plano.hipotese_reabastecimento)
+    for trecho in plano.trechos or []:
+        linhas.append(f"Trecho {trecho.ordem}: {trecho.origem_icao} -> {trecho.destino_icao}")
+        linhas.append(
+            f"Distância: {trecho.distancia_valor} {trecho.distancia_unidade} ({trecho.distancia_fonte})"
+        )
+        linhas.append(f"Proa: {trecho.proa_valor} {trecho.proa_unidade} ({trecho.proa_fonte})")
+        linhas.append(f"Tempo: {trecho.tempo_valor} {trecho.tempo_unidade} ({trecho.tempo_fonte})")
+        linhas.append(
+            f"Combustível: {trecho.combustivel_valor} {trecho.combustivel_unidade} ({trecho.combustivel_fonte})"
+        )
+        linhas.append(f"Vento: {rotulo_lido(trecho.vento_estado)}")
+        linhas.append(f"Pôr do sol: {rotulo_lido(trecho.por_do_sol_estado)}")
     for linha in plano.resultado.get("linhas", []):
         linhas.append(f"{linha['nome']}: {linha['valor']} {linha['unidade']} ({linha['fonte']})")
     vento = plano.vento or {}
     if vento.get("estado") == "disponivel":
-        linhas.append(f"Vento: {vento.get('efeito', '')} ({vento.get('fonte', '')})")
+        linhas.append(
+            f"Vento: {vento.get('direcao_de_graus')} graus, {vento.get('velocidade_kt')} "
+            f"{vento.get('unidade', 'kt')} ({vento.get('fonte', '')})"
+        )
+        if vento.get("efeito"):
+            linhas.append(vento["efeito"])
     else:
-        linhas.append("Vento: indisponivel")
-    met = plano.meteorologia or {}
-    if met.get("estado") == "disponivel":
-        linhas.append("Tempo: resumo meteorologico disponivel")
+        linhas.append("Vento: indisponível")
+    boletins = linhas_boletim(plano.meteorologia or {})
+    if boletins:
+        linhas.extend(boletins)
     else:
-        linhas.append("Tempo: indisponivel")
+        linhas.append("Tempo: indisponível")
     linhas.append("Checklist:")
     for item in plano.itens:
         marca = "x" if item.marcado else " "

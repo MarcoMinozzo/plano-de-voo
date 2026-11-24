@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Plano — Plano de voo</title>
+<style>
+  /* DESIGN.md: menu-bar, summary-card, leg-tab, leg-ficha, measure-field, map-panel, sequence-line, disclaimer.
+     EXPERIENCE.md: Plano aceito, ficha da frente. Fluxo 1, passo 4. */
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: sans-serif; color: #F4F7FB; background: #001030; }
+  .viewport { min-height: 100vh; background: #001030 url("../imports/blueprint-airport-runway.jpg") center/cover no-repeat; }
+  .viewport::before { content: ""; position: fixed; inset: 0; background: rgba(0, 16, 48, 0.35); }
+  header, main { position: relative; }
+  header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 12px; background: #001030; }
+  header img { width: 72px; height: auto; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; }
+  nav span { min-height: 44px; padding: 12px; border-radius: 16px; }
+  main { width: min(100% - 24px, 48rem); margin: 0 auto; padding: 16px 0 32px; }
+  .glass, .ficha { border-radius: 24px; }
+  .glass { margin-bottom: 16px; padding: 24px; background: rgba(28, 51, 72, 0.82); }
+  h1 { margin: 0 0 8px; font-size: 1.75rem; line-height: 1.25; }
+  .estado { margin: 0 0 16px; }
+  .resumo { margin: 0; padding-left: 1.1rem; }
+  .abas { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 8px; }
+  .aba { flex: 0 0 auto; min-height: 44px; padding: 12px 16px; border-radius: 16px; background: #001030; }
+  .frente { background: #F0A000; color: #001030; }
+  .ficha { padding: 24px; background: #F4F7FB; color: #001030; }
+  h2 { margin: 24px 0 8px; font-size: 1rem; }
+  h2:first-child { margin-top: 0; }
+  dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin: 0; }
+  dt { font-size: 0.875rem; color: #001030; }
+  dd { margin: 0; font-size: 1rem; }
+  .fonte, .aviso-mapa, .indisponivel { color: #8AA0B8; font-size: 0.875rem; }
+  .mapa-botoes { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .mapa-botoes span { min-height: 44px; padding: 12px; border-radius: 16px; background: #001030; color: #F4F7FB; }
+  .escolhido { background: #F0A000 !important; color: #001030 !important; }
+  .mapa { height: 180px; border-radius: 8px; background: #8AA0B8; color: #001030; display: flex; align-items: center; justify-content: center; }
+  .sequencia { margin: 8px 0 0; line-height: 1.45; }
+  .aviso { margin: 16px 0 0; }
+</style>
+</head>
+<body>
+  <div class="viewport">
+    <header>
+      <img src="../imports/emblema-plano-de-voo.png" alt="Plano de voo">
+      <nav>
+        <span>Novo voo</span>
+        <span>Voos planejados</span>
+        <span>Imprimir voo</span>
+        <span>Sair</span>
+      </nav>
+    </header>
+    <main>
+      <section class="glass">
+        <h1>SBJD — SBAU</h1>
+        <p class="estado">Aceitável para planejamento. Cessna 140.</p>
+        <ul class="resumo">
+          <li>SBJD — SBKP. Saída e chegada já calculadas.</li>
+          <li>SBKP — SBAU. Saída e chegada já calculadas.</li>
+        </ul>
+        <p>O resultado apoia o planejamento e não autoriza o voo.</p>
+      </section>
+      <div class="abas">
+        <span class="aba frente" aria-current="true">SBJD — SBKP</span>
+        <span class="aba">SBKP — SBAU</span>
+      </div>
+      <article class="ficha">
+        <h2>Distância, km</h2>
+        <p>210 <span class="fonte">Fonte: conta do plano.</span></p>
+        <h2>Proa, graus</h2>
+        <p>312 <span class="fonte">Fonte: conta do plano.</span></p>
+        <h2>METAR da saída</h2>
+        <dl>
+          <div><dt>Vento</dt><dd>180 graus, 8 kt</dd></div>
+          <div><dt>Visibilidade</dt><dd>10 km ou mais</dd></div>
+          <div><dt>Nuvens</dt><dd>poucas, a 2 000 ft</dd></div>
+          <div><dt>Temperatura</dt><dd>25 °C</dd></div>
+          <div><dt>Tempo presente</dt><dd class="indisponivel">indisponível</dd></div>
+        </dl>
+        <p class="fonte">Fonte: texto de METAR já gravado de SBJD.</p>
+        <h2>METAR da chegada</h2>
+        <p class="indisponivel">indisponível</p>
+        <h2>Mapa do trecho</h2>
+        <div class="mapa-botoes">
+          <span class="escolhido">Carta de voo visual</span>
+          <span>Mapa de ruas</span>
+          <span>Radar de chuva</span>
+        </div>
+        <div class="mapa">Carta de voo visual</div>
+        <p class="fonte">Fonte gravada da carta.</p>
+        <p class="aviso-mapa">No mapa de ruas, esta vista não substitui a carta de voo visual.</p>
+        <h2>Sequência do trecho</h2>
+        <p class="sequencia">Saída SBJD. Chegada SBKP. Distância 210 km. Proa 312 graus.</p>
+        <p class="aviso">O resultado apoia o planejamento e não autoriza o voo.</p>
+      </article>
+    </main>
+  </div>
+</body>
+</html>

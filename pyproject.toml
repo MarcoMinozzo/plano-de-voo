@@ -1,0 +1,22 @@
+
+
+[tool.suite.review]
+            source_roots = ["servidor"]
+            module_root = "."
+            max_cyclomatic_complexity = 23
+            max_module_lines = 462
+            min_mutation_score = 56
+
+            [tool.mutmut]
+            source_paths = ["servidor"]
+also_copy = ["suite"]
+            only_mutate = ["servidor/calculo.py"]
+            pytest_add_cli_args = ["--no-cov"]
+            pytest_add_cli_args_test_selection = ["suite/test_mutation_targets.py"]
+
+            [tool.coverage.run]
+source = ["servidor"]
+
+[tool.coverage.report]
+fail_under = 27
+skip_covered = true

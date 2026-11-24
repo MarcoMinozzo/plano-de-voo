@@ -285,7 +285,7 @@ Depois da Phase 2, US1 e US2 podem andar juntos se quem faz US2 não editar `ser
 
 **Purpose**: Fechar o que a spec, o plano e a constituição ainda não encontram no código
 
-- [ ] T037 CRITICAL Retirar `templates/index.html`: a página não é servida por `app.py`, mas guarda fórmula de navegação em JavaScript e o consumo 5,0 da semente per Constitution III (contradicts)
-- [ ] T038 Ler em `servidor/tempo.py` direção, velocidade e fonte do produto de área da REDEMET somente quando a mensagem cobrir a rota; sem cobertura, manter `indisponivel`. Em `servidor/calculo.py`, não publicar velocidade em relação ao solo igual à de planejamento quando o vento está indisponível per FR-009 (partial)
-- [ ] T039 Mostrar na tela do plano e no PDF o texto do METAR e do TAF quando a meteorologia estiver disponível, e manter o item indisponível, sem valor inventado, quando a fonte falhar per FR-004 (partial)
-- [ ] T040 Em `servidor/tempo.py`, usar a carta WAC cuja área cubra a rota e gravar `indisponivel` quando nenhuma carta da resposta cobrir a região per FR-008 (partial)
+- [X] T037 CRITICAL Retirar `templates/index.html`: a página não é servida por `app.py`, mas guarda fórmula de navegação em JavaScript e o consumo 5,0 da semente per Constitution III (contradicts)
+- [X] T038 Ler em `servidor/tempo.py` direção, velocidade e fonte do produto de área da REDEMET somente quando a mensagem cobrir a rota; sem cobertura, manter `indisponivel`. Em `servidor/calculo.py`, não publicar velocidade em relação ao solo igual à de planejamento quando o vento está indisponível per FR-009 (partial)
+- [X] T039 Mostrar na tela do plano e no PDF o texto do METAR e do TAF quando a meteorologia estiver disponível, e manter o item indisponível, sem valor inventado, quando a fonte falhar per FR-004 (partial)
+- [X] T040 Em `servidor/tempo.py`, usar a carta WAC cuja área cubra a rota e gravar `indisponivel` quando nenhuma carta da resposta cobrir a região per FR-008 (partial)

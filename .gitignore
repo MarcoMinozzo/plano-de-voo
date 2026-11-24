@@ -1,6 +1,16 @@
 .venv/
+venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+dist/
+*.egg-info/
 cessna140.db
 .env
+
+mutants/
+.coverage
+htmlcov/
+
+# Respostas pessoais do instalador BMAD. O restante de _bmad/ é do time.
+_bmad/config.user.toml

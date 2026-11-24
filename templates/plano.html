@@ -1,11 +1,69 @@
 {% extends "base.html" %}
 {% block titulo %}{{ plano.origem_icao }} → {{ plano.destino_icao }}{% endblock %}
+{% block menu_imprimir %}
+<a href="{{ url_for('pdf', plano_id=plano.id) }}">Imprimir voo</a>
+{% endblock %}
+{% block aviso_impressao %}{% endblock %}
 {% block corpo %}
+<section class="vidro" id="resumo">
+    {% for trecho in plano.trechos %}
+    <p>{{ trecho.origem_icao }} — {{ trecho.destino_icao }}. {{ trecho.distancia_valor }} {{ trecho.distancia_unidade }}. Proa {{ trecho.proa_valor }} {{ trecho.proa_unidade }}.</p>
+    {% endfor %}
+</section>
+<nav class="abas">
+    {% for trecho in plano.trechos %}
+    <a href="#trecho-{{ trecho.ordem }}">{{ trecho.origem_icao }} — {{ trecho.destino_icao }}</a>
+    {% endfor %}
+</nav>
+<section class="leitura">
 <h1>{{ plano.origem_icao }} → {{ plano.destino_icao }}</h1>
-<p>Aeronave: {{ aeronave.nome }}. Estado: {{ plano.estado }}.</p>
+<p>Aeronave: {{ aeronave.nome }}. Estado: {{ rotulo_lido(plano.estado) }}.</p>
+<p><a href="{{ url_for('alterar_plano', plano_id=plano.id) }}">Alterar e recalcular</a></p>
+{% if plano.motivo %}<p>{{ plano.motivo }}</p>{% endif %}
+{% if plano.hipotese_reabastecimento %}<p>{{ plano.hipotese_reabastecimento }}</p>{% endif %}
 {% if plano.resultado.alertas %}
 <ul>{% for alerta in plano.resultado.alertas %}<li>{{ alerta }}</li>{% endfor %}</ul>
 {% endif %}
+{% if plano.trechos %}
+{% set base = plano.trechos[0] %}
+{% set ns = namespace(dist=true, proa=true, tempo=true, comb=true) %}
+{% for trecho in plano.trechos %}
+{% if trecho.distancia_unidade != base.distancia_unidade %}{% set ns.dist = false %}{% endif %}
+{% if trecho.proa_unidade != base.proa_unidade %}{% set ns.proa = false %}{% endif %}
+{% if trecho.tempo_unidade != base.tempo_unidade %}{% set ns.tempo = false %}{% endif %}
+{% if trecho.combustivel_unidade != base.combustivel_unidade %}{% set ns.comb = false %}{% endif %}
+{% endfor %}
+<h2>Trechos</h2>
+<table>
+    <caption>Distância: {{ base.distancia_fonte }}. Proa: {{ base.proa_fonte }}. Tempo: {{ base.tempo_fonte }}. Combustível: {{ base.combustivel_fonte }}.</caption>
+    <thead>
+        <tr>
+            <th>Ordem</th><th>Origem</th><th>Destino</th>
+            <th>Distância{% if ns.dist %} ({{ base.distancia_unidade }}){% endif %}</th>
+            <th>Proa{% if ns.proa %} ({{ base.proa_unidade }}){% endif %}</th>
+            <th>Tempo{% if ns.tempo %} ({{ base.tempo_unidade }}){% endif %}</th>
+            <th>Combustível{% if ns.comb %} ({{ base.combustivel_unidade }}){% endif %}</th>
+            <th>Vento</th><th>Pôr do sol</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for trecho in plano.trechos %}
+        <tr id="trecho-{{ trecho.ordem }}">
+            <td>{{ trecho.ordem }}</td>
+            <td>{{ trecho.origem_icao }}</td>
+            <td>{{ trecho.destino_icao }}</td>
+            <td>{{ trecho.distancia_valor }}{% if not ns.dist or trecho.distancia_fonte != base.distancia_fonte %} {{ trecho.distancia_unidade }} ({{ trecho.distancia_fonte }}){% endif %}</td>
+            <td>{{ trecho.proa_valor }}{% if not ns.proa or trecho.proa_fonte != base.proa_fonte %} {{ trecho.proa_unidade }} ({{ trecho.proa_fonte }}){% endif %}</td>
+            <td>{{ trecho.tempo_valor }}{% if not ns.tempo or trecho.tempo_fonte != base.tempo_fonte %} {{ trecho.tempo_unidade }} ({{ trecho.tempo_fonte }}){% endif %}</td>
+            <td>{{ trecho.combustivel_valor }}{% if not ns.comb or trecho.combustivel_fonte != base.combustivel_fonte %} {{ trecho.combustivel_unidade }} ({{ trecho.combustivel_fonte }}){% endif %}</td>
+            <td>{{ rotulo_lido(trecho.vento_estado) }}</td>
+            <td>{{ rotulo_lido(trecho.por_do_sol_estado) }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% if plano.resultado.linhas %}
 <table>
     <thead><tr><th>Grandeza</th><th>Valor</th><th>Unidade</th><th>Fonte</th></tr></thead>
     <tbody>
@@ -19,25 +77,46 @@
     {% endfor %}
     </tbody>
 </table>
+{% endif %}
+{% set tempo_ok = boletins %}
+{% set vento_ok = plano.vento.estado == "disponivel" %}
+{% set carta_ok = plano.carta.estado == "disponivel" %}
+{% set radar_ok = plano.radar.estado == "disponivel" %}
 <h2>Tempo, vento, carta e radar</h2>
-<p>Meteorologia: {{ plano.meteorologia.estado }}.</p>
-<p>Vento: {{ plano.vento.estado }}{% if plano.vento.efeito %} — {{ plano.vento.efeito }}{% endif %}.</p>
-<p>Carta: {{ plano.carta.estado }}{% if plano.carta.url %} — <a href="{{ plano.carta.url }}">{{ plano.carta.fonte }}</a>{% endif %}.</p>
-<p>Radar: {{ plano.radar.estado }}.</p>
-<div id="mapa" style="height: 320px"></div>
+{% if not tempo_ok and not vento_ok and not carta_ok and not radar_ok %}
+<p>Tempo, vento, carta de voo visual e radar: indisponível.</p>
+{% else %}
+{% if tempo_ok %}
+{% for linha in boletins %}<p>{{ linha }}</p>{% endfor %}
+{% endif %}
+{% if vento_ok %}
+<p>Vento: {{ plano.vento.direcao_de_graus }} graus, de onde vem, {{ plano.vento.velocidade_kt }} {{ plano.vento.unidade }} ({{ plano.vento.fonte }}){% if plano.vento.efeito %} — {{ plano.vento.efeito }}{% endif %}.</p>
+{% endif %}
+{% if carta_ok %}
+<p>Carta de voo visual: <a href="{{ plano.carta.url }}">{{ plano.carta.fonte }}</a>.</p>
+{% endif %}
+{% if radar_ok %}
+<p>Radar: {{ rotulo_lido(plano.radar.estado) }}.</p>
+{% endif %}
+{% if not tempo_ok or not vento_ok or not carta_ok or not radar_ok %}
+<p>Indisponível:{% if not tempo_ok %} tempo{% endif %}{% if not vento_ok %}{% if not tempo_ok %},{% endif %} vento{% endif %}{% if not carta_ok %}{% if not tempo_ok or not vento_ok %},{% endif %} carta de voo visual{% endif %}{% if not radar_ok %}{% if not tempo_ok or not vento_ok or not carta_ok %},{% endif %} radar{% endif %}.</p>
+{% endif %}
+{% endif %}
+{% if pontos|length >= 2 %}
+<p class="legenda">O mapa de ruas só situa a rota e o radar. Ele não substitui a carta de voo visual.</p>
+<div id="mapa"></div>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
   const el = document.getElementById("mapa");
-  if (!window.L || !el) return;
-  const origem = {{ [origem.lat, origem.lon] | tojson }};
-  const destino = {{ [destino.lat, destino.lon] | tojson }};
-  const mapa = L.map(el).setView(origem, 7);
+  const pontos = {{ pontos | tojson }};
+  if (!window.L || !el || pontos.length < 2) return;
+  const mapa = L.map(el).setView(pontos[0], 7);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "OpenStreetMap"
   }).addTo(mapa);
-  const linha = L.polyline([origem, destino]).addTo(mapa);
+  const linha = L.polyline(pontos).addTo(mapa);
   mapa.fitBounds(linha.getBounds(), {padding: [20, 20]});
   const radar = {{ plano.radar | tojson }};
   if (radar.estado === "disponivel" && radar.url) {
@@ -45,23 +124,28 @@
   }
 })();
 </script>
+{% endif %}
 <h2>Checklist</h2>
 <ul>
 {% for item in plano.itens %}
-<li>
+<li id="item-{{ item.id }}">
     <form method="post" action="{{ url_for('checklist', plano_id=plano.id, item_id=item.id) }}">
         <input type="hidden" name="marcado" value="{{ 'false' if item.marcado else 'true' }}">
-        <button type="submit">{{ "marcado" if item.marcado else "marcar" }}</button>
-        {{ item.texto }} ({{ item.fonte }})
+        <button type="submit">{{ "Desmarcar" if item.marcado else "Marcar" }}</button>
+        <span>{{ item.texto }}</span>
+        {% if item.marcado %}marcado{% endif %}
+        ({{ item.fonte }})
     </form>
 </li>
 {% endfor %}
 </ul>
 <p><a href="{{ url_for('pdf', plano_id=plano.id) }}">Imprimir PDF</a></p>
-<form method="post" action="{{ url_for('apagar_plano', plano_id=plano.id) }}" onsubmit="return false">
-</form>
 <form id="apagar" onsubmit="event.preventDefault(); fetch('{{ url_for('apagar_plano', plano_id=plano.id) }}', {method: 'DELETE', headers: {'Content-Type': 'application/json', 'Accept': 'application/json'}, body: JSON.stringify({confirmar: confirm('Apagar este plano?')})}).then(r => { if (r.ok) location.href='{{ url_for('painel') }}'; });">
     <button type="submit">Apagar plano</button>
 </form>
-<article class="aviso">{{ orientacao }}</article>
+<details>
+    <summary>Como ler este plano</summary>
+    <article>{{ orientacao }}</article>
+</details>
+</section>
 {% endblock %}

@@ -27,6 +27,9 @@ def campo_tecnico_faltando(aeronave):
     return None
 
 
+NM_POR_KM = 0.539957
+
+
 def distancia_km(lat1, lon1, lat2, lon2):
     raio = 6371.0
     p1, p2 = radians(lat1), radians(lat2)
@@ -34,6 +37,34 @@ def distancia_km(lat1, lon1, lat2, lon2):
     dlmb = radians(lon2 - lon1)
     a = sin(dphi / 2) ** 2 + cos(p1) * cos(p2) * sin(dlmb / 2) ** 2
     return 2 * raio * asin(sqrt(a))
+
+
+def distancia_nm(lat1, lon1, lat2, lon2):
+    return distancia_km(lat1, lon1, lat2, lon2) * NM_POR_KM
+
+
+def avaliar_carga(aeronave, particulares):
+    peso_pessoas = float(particulares["peso_pessoas_kg"])
+    peso_bagagem = float(particulares["peso_bagagem_kg"])
+    combustivel_gal = float(aeronave.combustivel_valor)
+    peso_combustivel = combustivel_gal * KG_POR_GAL
+    peso_total = (
+        float(aeronave.peso_vazio_kg)
+        + peso_pessoas
+        + peso_bagagem
+        + peso_combustivel
+    )
+    alertas = []
+    if peso_total > float(aeronave.peso_max_decolagem_kg):
+        alertas.append(
+            f"Peso {peso_total:.1f} kg acima do máximo de decolagem "
+            f"{aeronave.peso_max_decolagem_kg:.1f} kg"
+        )
+    if peso_bagagem > float(aeronave.bagagem_max_kg):
+        alertas.append(
+            f"Bagagem {peso_bagagem:.1f} kg acima do máximo {aeronave.bagagem_max_kg:.1f} kg"
+        )
+    return alertas, peso_total, peso_combustivel
 
 
 def proa_graus(lat1, lon1, lat2, lon2):
@@ -50,7 +81,7 @@ def calcular(aeronave, origem, destino, particulares, vento=None):
         return {"erro": faltando, "grava": False}
 
     km = distancia_km(origem.lat, origem.lon, destino.lat, destino.lon)
-    nm = km * 0.539957
+    nm = distancia_nm(origem.lat, origem.lon, destino.lat, destino.lon)
     tas = float(aeronave.velocidade_valor)
     proa = proa_graus(origem.lat, origem.lon, destino.lat, destino.lon)
     fonte_manual = aeronave.fonte_manual
@@ -78,29 +109,8 @@ def calcular(aeronave, origem, destino, particulares, vento=None):
     reserva = RESERVA_HORAS * consumo
     total = necessario + reserva
 
-    peso_piloto = float(particulares["peso_piloto_kg"])
-    peso_passageiro = float(particulares["peso_passageiro_kg"])
-    peso_bagagem = float(particulares["peso_bagagem_kg"])
-    combustivel_gal = float(particulares["combustivel_a_bordo_gal"])
-    peso_combustivel = combustivel_gal * KG_POR_GAL
-    peso_total = (
-        float(aeronave.peso_vazio_kg)
-        + peso_piloto
-        + peso_passageiro
-        + peso_bagagem
-        + peso_combustivel
-    )
-
-    alertas = []
-    if peso_total > float(aeronave.peso_max_decolagem_kg):
-        alertas.append(
-            f"Peso {peso_total:.1f} kg acima do máximo de decolagem "
-            f"{aeronave.peso_max_decolagem_kg:.1f} kg"
-        )
-    if peso_bagagem > float(aeronave.bagagem_max_kg):
-        alertas.append(
-            f"Bagagem {peso_bagagem:.1f} kg acima do máximo {aeronave.bagagem_max_kg:.1f} kg"
-        )
+    alertas_carga, peso_total, peso_combustivel = avaliar_carga(aeronave, particulares)
+    alertas = list(alertas_carga)
     if total > float(aeronave.combustivel_valor):
         alertas.append(
             f"Combustível necessário {total:.1f} {aeronave.combustivel_unidade} "
@@ -113,14 +123,26 @@ def calcular(aeronave, origem, destino, particulares, vento=None):
         _linha("Distância", round(nm, 1), "nm", fonte_coord),
         _linha("Proa", round(proa, 0), "graus", fonte_coord),
         _linha("Velocidade de planejamento", tas, aeronave.velocidade_unidade, fonte_manual),
-        _linha("Velocidade em relação ao solo", round(gs, 1), "kt", fonte_manual if not vento_aplicado else vento.get("fonte", fonte_manual)),
-        _linha("Tempo de voo", round(horas, 2), "h", fonte_manual),
-        _linha("Combustível de voo", round(necessario, 2), aeronave.consumo_unidade.split("/")[0], fonte_manual),
-        _linha("Reserva", round(reserva, 2), aeronave.combustivel_unidade, FONTE_RESERVA),
-        _linha("Combustível necessário", round(total, 2), aeronave.combustivel_unidade, fonte_manual),
-        _linha("Peso total", round(peso_total, 1), "kg", fonte_manual),
-        _linha("Peso de combustível", round(peso_combustivel, 1), "kg", FONTE_AVGAS),
     ]
+    if vento_aplicado:
+        linhas.append(
+            _linha(
+                "Velocidade em relação ao solo",
+                round(gs, 1),
+                "kt",
+                vento.get("fonte", fonte_manual),
+            )
+        )
+    linhas.extend(
+        [
+            _linha("Tempo de voo", round(horas, 2), "h", fonte_manual),
+            _linha("Combustível de voo", round(necessario, 2), aeronave.consumo_unidade.split("/")[0], fonte_manual),
+            _linha("Reserva", round(reserva, 2), aeronave.combustivel_unidade, FONTE_RESERVA),
+            _linha("Combustível necessário", round(total, 2), aeronave.combustivel_unidade, fonte_manual),
+            _linha("Peso total", round(peso_total, 1), "kg", fonte_manual),
+            _linha("Peso de combustível", round(peso_combustivel, 1), "kg", FONTE_AVGAS),
+        ]
+    )
     return {
         "grava": True,
         "aceitavel": len(alertas) == 0,
@@ -129,4 +151,8 @@ def calcular(aeronave, origem, destino, particulares, vento=None):
         "efeito_vento": efeito,
         "proa_graus": round(proa, 0),
         "velocidade_solo_kt": round(gs, 1),
+        "tempo_h": horas,
+        "distancia_nm": nm,
+        "cabe_reserva": total <= float(aeronave.combustivel_valor) + 1e-6,
+        "vento_estado": "disponivel" if vento_aplicado else "indisponivel",
     }

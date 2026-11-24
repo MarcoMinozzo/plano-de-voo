@@ -1,0 +1,9 @@
+# Fronteira com o Spec Kit. O instalador não reescreve este arquivo.
+
+[core]
+communication_language = "Portuguese"
+document_output_language = "Portuguese"
+project_name = "Plano de voo"
+
+[modules.bmm]
+project_knowledge = "_bmad/custom/convivencia-speckit.md"
