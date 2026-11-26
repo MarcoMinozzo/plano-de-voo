@@ -124,6 +124,14 @@ Aplicação Flask na raiz: `templates/`, `static/casca/`, `tests/`.
 
 - [X] T015 Seguir `specs/005-aplicar-casca-visual/quickstart.md` e rodar `pytest tests/test_casca_visual.py tests/test_tela_piloto.py`
 
+## Phase 8: Clarificação de 2026-11-24 — vidro, padding e texto contido
+
+- [X] T016 Em `templates/base.html`, aplicar o mesmo vidro azul acinzentado (82% e desfoque de 12 px) a `.vidro` e `.leitura`, com texto branco
+- [X] T017 Em `templates/base.html`, usar `box-sizing: border-box` e campos com largura útil, para o card não passar da tela abaixo de 720 px
+- [X] T018 Em `templates/plano.html` e `templates/painel.html`, pôr a tabela larga numa `.rolagem` que rola dentro do card; o texto longo quebra a linha
+- [X] T019 Em `templates/base.html`, mostrar "Não há voo para imprimir." só depois do clique em Imprimir voo, e girar a ampulheta
+- [X] T020 Cobrir T016 a T019 em `tests/test_casca_visual.py` e rodar `pytest tests/test_casca_visual.py tests/test_tela_piloto.py`
+
 ---
 
 ## Dependencies & Execution Order

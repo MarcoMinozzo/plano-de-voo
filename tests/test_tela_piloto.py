@@ -730,7 +730,7 @@ def test_tabela_de_procedencia_tem_rolagem_horizontal_propria(cliente):
 
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
     area = re.search(
-        r'<div class="overflow-x-auto">\s*(<table\b.*?</table>)\s*</div>',
+        r'<div class="rolagem larga">\s*(<table\b.*?</table>)\s*</div>',
         html,
         re.S,
     )

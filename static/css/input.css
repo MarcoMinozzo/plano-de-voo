@@ -21,3 +21,109 @@
   --color-aviation-overlay: rgba(0, 16, 48, 0.35);
   --breakpoint-md: 45rem;
 }
+
+#sem-voo {
+  display: none;
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0 12px;
+}
+
+#sem-voo:target {
+  display: block;
+}
+
+.vidro,
+.leitura {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  overflow-wrap: break-word;
+}
+
+.leitura {
+  background-color: rgba(28, 51, 72, 0.82);
+  color: #f4f7fb;
+}
+
+.vidro > :first-child,
+.leitura > :first-child {
+  margin-top: 0;
+}
+
+.vidro > :last-child,
+.leitura > :last-child {
+  margin-bottom: 0;
+}
+
+.vidro input,
+.vidro select {
+  max-width: 100%;
+}
+
+.vidro input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  vertical-align: middle;
+}
+
+a,
+.vidro a,
+.leitura a {
+  color: #f4f7fb;
+}
+
+.rolagem {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 16px;
+  scrollbar-color: #8aa0b8 transparent;
+}
+
+.rolagem.larga table {
+  min-width: 32rem;
+}
+
+td,
+th {
+  vertical-align: top;
+}
+
+#mapa {
+  border-radius: 8px;
+}
+
+#mapa a {
+  color: #0090f0;
+}
+
+.abas {
+  scrollbar-color: #8aa0b8 transparent;
+}
+
+.abas a[aria-selected="true"] {
+  background: #f0a000;
+  color: #001030;
+}
+
+form {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+label {
+  min-width: 0;
+}
+
+label > input:not([type="checkbox"]),
+label > select {
+  width: 100%;
+  min-width: 0;
+}
+
+.leitura ul {
+  padding-left: 1.2rem;
+}
+
+.leitura li {
+  margin-bottom: 12px;
+}

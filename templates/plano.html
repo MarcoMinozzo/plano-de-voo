@@ -28,11 +28,10 @@
 {% if plano.hipotese_reabastecimento %}
 <p class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy">{{ plano.hipotese_reabastecimento }}</p>
 {% endif %}
-
 {% if plano.resultado.get("procedencia") %}
 <section class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy">
 <h2>Fontes técnicas da aeronave</h2>
-<div class="overflow-x-auto">
+<div class="rolagem larga">
 <table class="w-full border-collapse [&_td]:border-b [&_td]:border-solid [&_td]:border-[#8AA0B8] [&_td]:px-[0.6rem] [&_td]:py-[0.3rem] [&_td]:text-left [&_th]:border-b [&_th]:border-solid [&_th]:border-[#8AA0B8] [&_th]:px-[0.6rem] [&_th]:py-[0.3rem] [&_th]:text-left [&_caption]:caption-bottom [&_caption]:pt-[0.4rem] [&_caption]:text-left">
     <thead><tr><th>Grandeza</th><th>Valor</th><th>Unidade</th><th>Faixa</th><th>Publicador e referência</th><th>Data</th><th>Aplicabilidade e perfil</th><th>Método/versão</th><th>Incerteza/comparabilidade</th><th>Edição/revisão</th><th>Página/tabela</th></tr></thead>
     <tbody>
@@ -64,6 +63,7 @@
 {% if plano.resultado.linhas %}
 <section class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy">
 <h2>Dados do plano</h2>
+<div class="rolagem larga">
 <table class="w-full border-collapse [&_td]:border-b [&_td]:border-solid [&_td]:border-[#8AA0B8] [&_td]:px-[0.6rem] [&_td]:py-[0.3rem] [&_td]:text-left [&_th]:border-b [&_th]:border-solid [&_th]:border-[#8AA0B8] [&_th]:px-[0.6rem] [&_th]:py-[0.3rem] [&_th]:text-left [&_caption]:caption-bottom [&_caption]:pt-[0.4rem] [&_caption]:text-left">
     <thead><tr><th>Grandeza</th><th>Valor</th><th>Unidade</th><th>Fonte</th></tr></thead>
     <tbody>
@@ -77,6 +77,7 @@
     {% endfor %}
     </tbody>
 </table>
+</div>
 </section>
 {% endif %}
 
