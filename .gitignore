@@ -1,5 +1,6 @@
 .venv/
 venv/
+node_modules/
 __pycache__/
 *.pyc
 .pytest_cache/
@@ -11,6 +12,9 @@ cessna140.db
 mutants/
 .coverage
 htmlcov/
+
+# Credenciais locais do AISWEB; manter fora do índice do Git.
+.env.example
 
 # Respostas pessoais do instalador BMAD. O restante de _bmad/ é do time.
 _bmad/config.user.toml

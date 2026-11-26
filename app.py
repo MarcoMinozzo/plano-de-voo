@@ -1,19 +1,30 @@
 import os
 from datetime import datetime, timedelta, timezone
 
-from flask import Flask, g, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, flash, g, jsonify, redirect, render_template, request, session, url_for
 
 from servidor import carregar_env
+from servidor import openaip
+from servidor.ambiente import resolver_ambiente
 from servidor.auth import (
     MENSAGEM_RECUSA,
+    MENSAGEM_NOME_EXIBICAO,
     cadastrar,
     entrar,
+    normalizar_nome_exibicao,
     sessao_expirada,
 )
-from servidor.catalogo import aerodromos_oferecidos, correspondencias, lugares_da_tela, modelos_visiveis
+from servidor.catalogo import (
+    aerodromos_oferecidos,
+    correspondencias,
+    lugares_da_tela,
+    modelos_visiveis,
+    perfis_sinteticos_visiveis,
+    procedencia_aeronave,
+)
 from servidor.modelos import Aeronave, Aerodromo, Sessao, agora, configurar
 from servidor.pdf_plano import gerar_pdf, ler_orientacao, rotulo_lido
-from servidor.tempo import linhas_boletim
+from servidor.tempo import campos_metar, linhas_boletim
 from servidor.planos import (
     apagar,
     do_piloto,
@@ -35,8 +46,43 @@ def _visto(valor):
     return hora
 
 
+def _boletins_por_aerodromo(plano):
+    meteorologia = plano.meteorologia if isinstance(plano.meteorologia, dict) else {}
+    aerodromos = meteorologia.get("aerodromos")
+    if not isinstance(aerodromos, dict):
+        aerodromos = {}
+    if not aerodromos:
+        for icao, chave in (
+            (plano.origem_icao, "origem"),
+            (plano.destino_icao, "destino"),
+        ):
+            bloco = meteorologia.get(chave)
+            if isinstance(bloco, dict):
+                aerodromos[icao] = bloco
+
+    boletins = {}
+    for trecho in plano.trechos:
+        for icao in (trecho.origem_icao, trecho.destino_icao):
+            if icao in boletins:
+                continue
+            bloco = aerodromos.get(icao)
+            if not isinstance(bloco, dict):
+                bloco = {"estado": "indisponivel"}
+            metar = bloco.get("metar") if isinstance(bloco.get("metar"), dict) else None
+            taf = bloco.get("taf") if isinstance(bloco.get("taf"), dict) else None
+            boletins[icao] = {
+                "estado": bloco.get("estado", "indisponivel"),
+                "fonte": bloco.get("fonte") or (metar or {}).get("fonte") or "Aviation Weather Center",
+                "metar": metar,
+                "campos_metar": campos_metar(metar),
+                "taf": taf or {"estado": "indisponivel"},
+            }
+    return boletins
+
+
 def criar_app():
     carregar_env()
+    ambiente = resolver_ambiente()
     app = Flask(__name__)
     app.secret_key = os.environ.get("SECRET_KEY", "dev")
     app.config["SESSION_COOKIE_HTTPONLY"] = True
@@ -44,7 +90,7 @@ def criar_app():
     app.config["SESSION_COOKIE_SECURE"] = os.environ.get("COOKIE_SECURE", "0") == "1"
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
     app.add_template_global(rotulo_lido)
-    configurar(os.environ["DATABASE_URL"])
+    configurar(ambiente.database_url)
 
     @app.before_request
     def abrir_sessao_db():
@@ -81,8 +127,15 @@ def criar_app():
 
     def catalogo_da_tela():
         estado_aero, aerodromos = lugares_da_tela(g.db)
-        _estado_modelo, modelos = modelos_visiveis(g.db)
-        return estado_aero, aerodromos, modelos
+        estado_modelos, modelos = modelos_visiveis(g.db)
+        perfis_sinteticos = perfis_sinteticos_visiveis(g.db)
+        return (
+            estado_aero,
+            aerodromos,
+            estado_modelos,
+            modelos,
+            perfis_sinteticos,
+        )
 
     def informado_de(dados):
         if not dados:
@@ -105,12 +158,28 @@ def criar_app():
         return saida
 
     def tela_plano(mensagem, dados, action=None):
-        estado_aero, aerodromos, aeronaves = catalogo_da_tela()
+        (
+            estado_aero,
+            aerodromos,
+            estado_modelos,
+            modelos,
+            perfis_sinteticos,
+        ) = catalogo_da_tela()
         informado = informado_de(dados)
         return render_template(
             "plano_novo.html",
             mensagem=mensagem,
-            aeronaves=aeronaves,
+            aeronaves=modelos + perfis_sinteticos,
+            modelos_fatuais=modelos,
+            perfis_sinteticos=perfis_sinteticos,
+            aeronave_padrao_id=(
+                modelos[0].id
+                if modelos
+                else perfis_sinteticos[0].id
+                if perfis_sinteticos
+                else None
+            ),
+            modelos_estado=estado_modelos,
             aerodromos=aerodromos,
             catalogo_estado=estado_aero,
             orientacao=ler_orientacao(),
@@ -138,7 +207,12 @@ def criar_app():
         if request.method == "GET":
             return render_template("cadastro.html")
         dados = request.get_json(silent=True) or request.form
-        piloto, erro = cadastrar(g.db, dados.get("identificacao"), dados.get("senha"))
+        piloto, erro = cadastrar(
+            g.db,
+            dados.get("identificacao"),
+            dados.get("senha"),
+            dados.get("nome_exibicao"),
+        )
         if erro:
             if quer_json():
                 return jsonify({"mensagem": erro}), 400
@@ -147,6 +221,35 @@ def criar_app():
         if quer_json():
             return jsonify({"ok": True, "id": piloto.id})
         return redirect(url_for("painel"))
+
+    @app.route("/perfil", methods=["GET", "POST"])
+    def perfil():
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        if request.method == "GET":
+            return render_template("perfil.html", piloto=piloto)
+
+        dados = request.get_json(silent=True) or request.form
+        nome_exibicao = normalizar_nome_exibicao(dados.get("nome_exibicao"))
+        if nome_exibicao is None:
+            if quer_json():
+                return jsonify({"mensagem": MENSAGEM_NOME_EXIBICAO}), 400
+            return (
+                render_template(
+                    "perfil.html",
+                    piloto=piloto,
+                    mensagem=MENSAGEM_NOME_EXIBICAO,
+                ),
+                400,
+            )
+
+        piloto.nome_exibicao = nome_exibicao
+        g.db.commit()
+        if quer_json():
+            return jsonify({"ok": True, "nome_exibicao": piloto.nome_exibicao})
+        flash("Nome de exibição salvo.", "sucesso")
+        return redirect(url_for("perfil"))
 
     @app.route("/entrar", methods=["GET", "POST"])
     def entrar_pagina():
@@ -246,7 +349,12 @@ def criar_app():
             if plano is None:
                 return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
             dados = request.get_json(silent=True) or request.form
-            plano, erro = montar(g.db, piloto, dados, plano)
+            plano, erro = montar(
+                g.db,
+                piloto,
+                dados,
+                plano,
+            )
             if erro:
                 return jsonify({"mensagem": erro}), 400
             if quer_json():
@@ -258,25 +366,62 @@ def criar_app():
                 return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
             return render_template("recusa.html"), 404
         aeronave = g.db.get(Aeronave, plano.aeronave_id)
-        pontos = []
+        pontos_por_trecho = []
         for trecho in plano.trechos:
             saida = g.db.get(Aerodromo, trecho.origem_icao)
             chegada = g.db.get(Aerodromo, trecho.destino_icao)
             if saida is None or chegada is None:
+                pontos_por_trecho.append(
+                    {
+                        "ordem": trecho.ordem,
+                        "origem": trecho.origem_icao,
+                        "destino": trecho.destino_icao,
+                        "pontos": [],
+                    }
+                )
                 continue
-            if not pontos:
-                pontos.append([saida.lat, saida.lon])
-            pontos.append([chegada.lat, chegada.lon])
+            pontos_do_trecho = [[saida.lat, saida.lon], [chegada.lat, chegada.lon]]
+            pontos_por_trecho.append(
+                {
+                    "ordem": trecho.ordem,
+                    "origem": trecho.origem_icao,
+                    "destino": trecho.destino_icao,
+                    "pontos": pontos_do_trecho,
+                }
+            )
         if quer_json():
             return jsonify(para_json(plano))
         return render_template(
             "plano.html",
             plano=plano,
             aeronave=aeronave,
-            pontos=pontos,
+            pontos_por_trecho=pontos_por_trecho,
             boletins=linhas_boletim(plano.meteorologia),
+            boletins_por_aerodromo=_boletins_por_aerodromo(plano),
             orientacao=ler_orientacao(),
+            openaip_configurada=bool(os.environ.get("OPENAIP_API_KEY", "").strip()),
         )
+
+    @app.get("/planos/<int:plano_id>/camadas/openaip/<z>/<x>/<y>.png")
+    def tile_openaip(plano_id, z, x, y):
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        if do_piloto(g.db, piloto.id, plano_id) is None:
+            return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
+        try:
+            coordenadas = tuple(int(valor) for valor in (z, x, y))
+            conteudo, cache_control = openaip.buscar_tile(*coordenadas)
+        except ValueError:
+            return jsonify({"mensagem": "Coordenadas de tile inválidas."}), 400
+        except openaip.TileIndisponivel:
+            return jsonify({"mensagem": "Camada OpenAIP indisponível."}), 503
+
+        resposta = app.response_class(conteudo, mimetype="image/png")
+        resposta.headers["X-Content-Type-Options"] = "nosniff"
+        if cache_control:
+            resposta.headers["Cache-Control"] = cache_control
+        return resposta
 
     @app.delete("/planos/<int:plano_id>")
     def apagar_plano(plano_id):
@@ -304,7 +449,7 @@ def criar_app():
             return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
         if quer_json():
             return jsonify({"id": item.id, "marcado": item.marcado})
-        return redirect(url_for("ver_plano", plano_id=plano_id, _anchor=f"item-{item.id}"))
+        return redirect(url_for("ver_plano", plano_id=plano_id))
 
     @app.get("/planos/<int:plano_id>/pdf")
     def pdf(plano_id):
@@ -314,7 +459,11 @@ def criar_app():
         plano = do_piloto(g.db, piloto.id, plano_id)
         if plano is None:
             return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
-        return gerar_pdf(plano), 200, {"Content-Type": "application/pdf"}
+        return (
+            gerar_pdf(plano, piloto.nome_exibicao),
+            200,
+            {"Content-Type": "application/pdf"},
+        )
 
     @app.get("/aerodromos")
     def aerodromos():
@@ -340,6 +489,7 @@ def criar_app():
         if piloto is None:
             return resposta
         estado, lista = modelos_visiveis(g.db)
+        perfis = perfis_sinteticos_visiveis(g.db)
         modelos = []
         for aeronave in lista:
             item = {
@@ -348,13 +498,37 @@ def criar_app():
                 "frota": aeronave.frota,
                 "manual_estado": aeronave.manual_estado,
             }
-            if aeronave.manual_estado == "gravado":
-                item["fonte_manual"] = aeronave.fonte_manual
+            item["fonte_manual"] = aeronave.fonte_manual
+            item["dados_sinteticos"] = aeronave.dados_sinteticos
+            item["procedencia"] = procedencia_aeronave(g.db, aeronave)
+            item["estimativa_didatica"] = any(
+                fonte and fonte["estimativa_didatica"]
+                for fonte in item["procedencia"].values()
+            )
             modelos.append(item)
-        corpo = {"estado": estado, "modelos": modelos}
+        corpo = {
+            "estado": estado,
+            "modelos": modelos,
+            "perfis_sinteticos": [
+                {
+                    "id": aeronave.id,
+                    "nome": aeronave.nome,
+                    "manual_estado": aeronave.manual_estado,
+                    "dados_sinteticos": True,
+                    "rotulo": (
+                        "perfil sintético didático — valores não validados; "
+                        "não representam dados do modelo associado"
+                    ),
+                    "modelo_alvo": aeronave.nome.partition(" — ")[2],
+                    "procedencia": procedencia_aeronave(g.db, aeronave),
+                    "estimativa_didatica": False,
+                }
+                for aeronave in perfis
+            ],
+        }
         if estado == "indisponivel":
             corpo["observacao"] = (
-                "O registro nacional está indisponível. Esta lista não é o registro inteiro."
+                "O registro nacional está indisponível. A seleção está vazia; a lista local não é usada como substituta."
             )
         return jsonify(corpo)
 

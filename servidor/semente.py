@@ -24,7 +24,7 @@ def semear(db):
             Aeronave(
                 nome="Cessna 140",
                 frota=0,
-                manual_estado="gravado",
+                manual_estado="ausente",
                 fonte_manual=FONTE_MANUAL,
                 peso_vazio_kg=404.0,
                 peso_max_decolagem_kg=658.0,
@@ -65,9 +65,10 @@ def semear(db):
 
 def main():
     carregar_env()
-    import os
+    from servidor.ambiente import resolver_ambiente
 
-    configurar(os.environ["DATABASE_URL"])
+    ambiente = resolver_ambiente()
+    configurar(ambiente.database_url)
     db = Sessao()
     try:
         semear(db)

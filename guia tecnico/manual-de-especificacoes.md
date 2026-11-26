@@ -1,6 +1,6 @@
 # Manual de especificações
 
-Guia prático do Plano de voo neste repositório. A constituição vigente é a 2.2.0, em `.specify/memory/constitution.md`. A regra do Cursor que aponta esse fluxo é `.cursor/rules/speckit-sdd.mdc`. As skills ficam em `.cursor/skills/`. Não reescreva as skills, nem `.specify/templates/` nem `.specify/scripts/`.
+Guia prático do Plano de voo neste repositório. A constituição vigente é a 3.0.0, em `.specify/memory/constitution.md`. A regra do Cursor que aponta esse fluxo é `.cursor/rules/speckit-sdd.mdc`. As skills ficam em `.cursor/skills/` para o Cursor, `.devin/skills/` para o Devin e `.github/skills/` para GitHub Copilot no VS Code. Não reescreva as skills, nem `.specify/templates/` nem `.specify/scripts/`.
 
 A spec ativa está em `.specify/feature.json` e hoje é `specs/002-rota-com-escalas`. `specs/001-planejar-voo-visual` é o plano direto já construído. Comportamento novo abre outra pasta em `specs/`.
 
@@ -88,7 +88,7 @@ Quando um princípio muda, rode `/speckit-constitution`. A versão sobe assim:
 - MINOR acrescenta princípio ou seção.
 - PATCH só esclarece texto.
 
-A linha de versão fica no fim do arquivo. A atual é `2.2.0`, ratificada e emendada em 2026-10-21. A skill também pede um comentário HTML no topo com o relatório da emenda. Esse comentário é rascunho de revisão e deve sair antes do commit da emenda.
+A linha de versão fica no fim do arquivo. A atual é `3.0.0`, ratificada em 2026-10-21 e emendada em 2026-11-24. A skill também pede um comentário HTML no topo com o relatório da emenda. Esse comentário é rascunho de revisão e deve sair antes do commit da emenda.
 
 Spec, plano e tarefas novos têm de caber na constituição. `/speckit-analyze` trata conflito com a constituição como achado crítico. Comportamento que o piloto vê e que ainda não está numa spec começa em `/speckit-specify`, não no código.
 
@@ -141,7 +141,7 @@ A orientação que o piloto lê continua em `documentacao/piloto.md`. A operaç�
 
 **Tasks.** `tasks.md`. Lista ordenada do que implementar. Cada linha começa com `- [ ]` ou `- [X]`, um identificador `T001` e o arquivo a mexer.
 
-**Constituição.** `.specify/memory/constitution.md`. Regras que spec, plano e código não podem contrariar. Versão atual: 2.2.0.
+**Constituição.** `.specify/memory/constitution.md`. Regras que spec, plano e código não podem contrariar. Versão atual: 3.0.0.
 
 **Skill.** Arquivo `SKILL.md` em `.cursor/skills/speckit-*`. É o texto que o Cursor segue quando você digita o comando com barra.
 

@@ -32,5 +32,7 @@
 ## Notes
 
 - A spec cita o ROTAER, o Registro Aeronáutico Brasileiro e o RBAC como normas e publicações, não como escolha de biblioteca.
-- O corte de 80% da frota está nas Assumptions e no FR-004. É a leitura de "principalmente as mais usadas" enquanto o manual de cada modelo não cabe numa única carga.
-- Validação em 2026-10-21: os 16 itens passam.
+- O limite do MVP é de até 30 modelos com informação técnica completa e rastreável, oficial ou secundária para uso didático, na ordem de frota; os demais ficam em espera e não aparecem na seleção.
+- Sem extrato RAB vigente, a lista fica indisponível e vazia, sem aceitar modelos locais como substitutos.
+- Os critérios de fonte e completude valem igualmente para todos os modelos, sem exceção por nome; valores históricos ficam armazenados, mas não são usados sem procedência verificável. Estimativas secundárias e conflitos ficam identificados, sem média ou apresentação como aptos a voo real.
+- Revisão em 2026-11-24: os 16 itens passam.

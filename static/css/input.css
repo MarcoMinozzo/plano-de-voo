@@ -1,0 +1,23 @@
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+@layer base {
+  *, ::before, ::after {
+    box-sizing: border-box;
+  }
+}
+
+@source "../../templates";
+
+@theme {
+  --color-aviation-navy: #001030;
+  --color-aviation-blue: #0090f0;
+  --color-aviation-yellow: #f0a000;
+  --color-aviation-white: #f4f7fb;
+  --color-aviation-glass: rgba(28, 51, 72, 0.82);
+  --color-aviation-paper: rgba(244, 247, 251, 0.94);
+  --color-aviation-overlay: rgba(0, 16, 48, 0.35);
+  --breakpoint-md: 45rem;
+}

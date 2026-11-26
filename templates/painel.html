@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% block titulo %}Painel{% endblock %}
 {% block corpo %}
-<section class="leitura">
+<section class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy">
 <h1>Seus planos</h1>
-<p><a href="{{ url_for('novo_plano') }}">Novo plano</a></p>
-<table>
+<p><a class="text-aviation-navy" href="{{ url_for('novo_plano') }}">Novo plano</a></p>
+<table class="w-full border-collapse [&_td]:border-b [&_td]:border-solid [&_td]:border-[#8AA0B8] [&_td]:px-[0.6rem] [&_td]:py-[0.3rem] [&_td]:text-left [&_th]:border-b [&_th]:border-solid [&_th]:border-[#8AA0B8] [&_th]:px-[0.6rem] [&_th]:py-[0.3rem] [&_th]:text-left [&_caption]:caption-bottom [&_caption]:pt-[0.4rem] [&_caption]:text-left">
     <thead><tr><th>Origem</th><th>Destino</th><th>Partida</th><th>Estado</th></tr></thead>
     <tbody>
     {% for plano in planos %}
         <tr>
-            <td><a href="{{ url_for('ver_plano', plano_id=plano.id) }}">{{ plano.origem_icao }}</a></td>
+            <td><a class="text-aviation-navy" href="{{ url_for('ver_plano', plano_id=plano.id) }}">{{ plano.origem_icao }}</a></td>
             <td>{{ plano.destino_icao }}</td>
             <td>{{ plano.hora_partida }}</td>
             <td>{{ rotulo_lido(plano.estado) }}</td>

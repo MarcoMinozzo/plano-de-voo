@@ -8,15 +8,17 @@ Este texto aparece na tela do plano e no PDF.
 
 Informe de onde sai, para onde vai, a data e a hora, e o tipo de avião. Informe o número de passageiros, já incluindo você, o peso das pessoas e o peso da bagagem. O combustível de planejamento vem do manual da aeronave.
 
-## Tempo, vento, carta e radar
+Seu nome de exibição pode ser alterado em Perfil e aparece na capa do relatório PDF. Ele é independente da identificação usada para entrar. Depois de salvar, a tela confirma a alteração.
 
-Quando a fonte entrega a meteorologia, a tela e o PDF mostram o texto do boletim do aeródromo de saída e o do aeródromo de destino. Quando entrega o vento de área da rota, mostram a direção de onde o vento vem, a velocidade e o efeito no voo. A carta é a carta de voo visual vigente da região da rota. O radar, quando existe para essa região, aparece sobre o mapa da rota.
+## Meteorologia, vento, carta e radar
 
-O mapa de ruas da tela só situa a rota e o radar. Ele não substitui a carta de voo visual.
+O plano tem uma ficha para cada trecho. A ficha mostra os METARs da saída e da chegada daquele trecho, com os campos estruturados que a fonte fornece identificados em português e nas unidades da fonte. O horário e a fonte aparecem junto aos dados, e o METAR original permanece visível sem tradução. Códigos não decodificados não recebem interpretação inventada. O TAF é apresentado separadamente, em seu texto original.
+
+O vento de área da rota, quando disponível, mostra a direção de onde vem, a velocidade e o efeito no voo. A carta oficial de voo visual (WAC) permanece indisponível até que edição vigente, georreferenciamento, cobertura, autorização e entrega reproduzível sejam validados; ela não é substituída por outra camada. O mapa de ruas apenas situa o trecho. OpenAIP é uma camada comunitária não oficial, não é uma carta WAC e não valida nem autoriza a rota. O radar começa desligado e pode ser ligado independentemente da base escolhida. Se estiver indisponível, a tela informa se falta a chave REDEMET, se não há cobertura válida para o trecho ou se a fonte falhou; a camada permanece desligada.
 
 ## Item indisponível
 
-Tempo, vento, carta ou radar podem aparecer como indisponível. Isso quer dizer que a fonte não entregou o dado, ou que o vento e a carta não cobrem a rota. O sistema não completa esse buraco com um valor estimado. Sem vento da rota, o plano não mostra uma velocidade em relação ao solo como se o vento fosse calmo. O resto do plano continua visível. Use o plano sabendo qual parte faltou.
+METAR, TAF, vento, carta, coordenadas, OpenAIP ou radar podem aparecer como indisponíveis na ficha ou no mapa. Isso quer dizer que a fonte não entregou o dado, que falta cobertura ou coordenada, ou que a camada ainda não passou pelos critérios de validação. O sistema não completa esse buraco com um valor estimado nem usa ruas ou OpenAIP como substituto da carta. Sem vento da rota, o plano não mostra uma velocidade em relação ao solo como se o vento fosse calmo. O resto do plano continua visível. Use o plano sabendo qual parte faltou.
 
 ## Escala
 
@@ -26,11 +28,17 @@ Em cada escala, a hipótese de planejamento é reabastecer até o combustível d
 
 ## Catálogo indisponível
 
-O catálogo nacional reúne os aeródromos de avião da emenda vigente. Se essa emenda não puder ser consultada, o catálogo fica indisponível. O sistema não completa a lista com coordenada estimada e não trata uma lista antiga como se fosse o país inteiro.
+O catálogo de aeródromos usa os aeródromos de avião da emenda vigente. Se essa emenda não puder ser consultada, fica indisponível; o sistema não completa a lista com coordenada estimada.
 
-## Modelo sem manual
+## Seleção de aeronaves
 
-Um modelo de avião pequeno pode aparecer na lista e ainda não ter o manual oficial gravado. O cálculo é recusado e o nome desse modelo é informado. Peso, velocidade e consumo não são inventados.
+A caixa mostra no máximo os 30 modelos factuais completos mais comuns na ordem de frota do extrato vigente do RAB. Para ser completo, o modelo precisa de combustível utilizável, velocidade e consumo do mesmo perfil nominal, peso vazio, peso máximo de decolagem e limite de bagagem, todos com unidade e fonte rastreável, oficial ou secundária.
+
+Sem extrato RAB vigente, o catálogo factual fica indisponível; perfis sintéticos didáticos permanecem em uma categoria separada e não são contados entre os modelos factuais.
+
+## Perfis sintéticos didáticos
+
+Os perfis sintéticos didáticos mantêm valores e unidades para exercícios de software. A associação a um modelo é somente o alvo do exercício e não comprova aplicabilidade. Os valores não foram validados e não são dados factuais daquele modelo. O aviso “perfil sintético didático — valores não validados; não representam dados do modelo associado” aparece na seleção, no resultado e no PDF. O catálogo de aeródromos e o cálculo da rota continuam sujeitos à emenda oficial vigente do ROTAER; dados sintéticos não substituem aeródromos, vento, meteorologia, carta ou pôr do sol.
 
 ## Limite do plano
 

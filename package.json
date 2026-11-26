@@ -1,0 +1,13 @@
+{
+  "name": "plano-de-voo-assets",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "css:build": "npx @tailwindcss/cli -i ./static/css/input.css -o ./static/css/tailwind.css --minify",
+    "css:watch": "npx @tailwindcss/cli -i ./static/css/input.css -o ./static/css/tailwind.css --watch"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.5",
+    "tailwindcss": "4.3.5"
+  }
+}

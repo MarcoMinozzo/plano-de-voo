@@ -11,6 +11,7 @@
             source_paths = ["servidor"]
 also_copy = ["suite"]
             only_mutate = ["servidor/calculo.py"]
+            on_dependency_change = "rerun"
             pytest_add_cli_args = ["--no-cov"]
             pytest_add_cli_args_test_selection = ["suite/test_mutation_targets.py"]
 

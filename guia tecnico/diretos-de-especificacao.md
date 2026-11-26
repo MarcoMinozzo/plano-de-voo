@@ -32,7 +32,7 @@ Manifesto dos arquivos do próprio Spec Kit copiados para o projeto: os seis scr
 
 ### `memory/constitution.md`
 
-Constituição do projeto, versão 2.2.0, ratificada e emendada em 2026-10-21. Define os princípios que o agente deve seguir: especificação antes do código, limite educacional, cálculo no servidor, unidade e fonte, pilha Flask com PostgreSQL. A seção «Catálogo nacional e rota» exige os aeródromos de avião da emenda vigente do ROTAER, os modelos de avião pequeno do registro público e a escolha da rota com escalas no servidor. O comentário no topo é o relatório da emenda 2.1.1 para 2.2.0. A spec ativa nomeada no texto é `specs/002-rota-com-escalas/`.
+Constituição do projeto, versão 3.0.0, ratificada em 2026-10-21 e emendada em 2026-11-24. Define os princípios que o agente deve seguir: especificação antes do código, limite educacional, cálculo no servidor, unidade e fonte, pilha Flask com PostgreSQL. A seção «Catálogo nacional e rota» exige os aeródromos de avião da emenda vigente do ROTAER, os modelos de avião pequeno do registro público e a escolha da rota com escalas no servidor. A regra do MVP oferece no máximo os 30 primeiros modelos completos e oculta os demais. O relatório da emenda atual está no comentário HTML do topo da constituição. A spec ativa nomeada no texto é `specs/002-rota-com-escalas/`.
 
 ### `memory/.constitution-template.json`
 
@@ -148,7 +148,7 @@ Arquivos que o Cursor lê. Nesta árvore só há a regra do Spec Kit e as skills
 
 ### `rules/speckit-sdd.mdc`
 
-Regra com `alwaysApply: true`. Diz que a constituição 2.2.0 prevalece, que as skills oficiais estão em `.cursor/skills/` e que não se reescreve skill, modelo nem script para descrever uma feature. A spec ativa indicada é `specs/002-rota-com-escalas/`. A ordem escrita é constitution, specify, plan, tasks, implement e converge. Antes de editar o servidor ou `templates/`, a regra manda ler `.specify/feature.json` e parar se a mudança não estiver numa tarefa desmarcada.
+Regra com `alwaysApply: true`. Diz que a constituição 3.0.0 prevalece, que as skills oficiais estão em `.cursor/skills/`, `.devin/skills/` e `.github/skills/` para Copilot no VS Code, e que não se reescreve skill, modelo nem script para descrever uma feature. A spec ativa indicada é `specs/002-rota-com-escalas/`. A ordem escrita é constitution, specify, plan, tasks, implement e converge. Antes de editar o servidor ou `templates/`, a regra manda ler `.specify/feature.json` e parar se a mudança não estiver numa tarefa desmarcada.
 
 ### Skills
 

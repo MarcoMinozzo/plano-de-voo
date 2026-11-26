@@ -41,7 +41,7 @@ def test_grandeza_tem_unidade_e_fonte():
         assert linha["fonte"]
 
 
-def test_peso_acima_de_658_inaceitavel(cliente):
+def test_peso_acima_do_mtow_da_aeronave_inaceitavel(cliente):
     cadastrar(cliente)
     resposta = cliente.post(
         "/planos",
@@ -51,7 +51,7 @@ def test_peso_acima_de_658_inaceitavel(cliente):
     corpo = resposta.get_json()
     assert resposta.status_code == 201
     assert corpo["estado"] == "inaceitavel"
-    assert any("658" in alerta for alerta in corpo["resultado"]["alertas"])
+    assert any("900" in alerta for alerta in corpo["resultado"]["alertas"])
 
 
 def test_origem_igual_destino_nao_grava(cliente):

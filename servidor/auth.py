@@ -7,6 +7,7 @@ from servidor.modelos import Piloto, TentativaEntrada, agora
 MENSAGEM_RECUSA = "Acesso recusado."
 MENSAGEM_SENHA_CURTA = "A senha precisa ter no mínimo 8 caracteres."
 MENSAGEM_JA_USADA = "Identificação já usada."
+MENSAGEM_NOME_EXIBICAO = "Informe um nome de exibição com até 160 caracteres."
 JANELA = timedelta(minutes=15)
 LIMITE_FALHAS = 5
 OCIOSIDADE = timedelta(hours=8)
@@ -14,6 +15,15 @@ OCIOSIDADE = timedelta(hours=8)
 
 def senha_curta(senha):
     return senha is None or len(senha) < 8
+
+
+def normalizar_nome_exibicao(nome):
+    if not isinstance(nome, str):
+        return None
+    nome = nome.strip()
+    if not nome or len(nome) > 160:
+        return None
+    return nome
 
 
 def em_bloqueio(db, identificacao, momento=None):
@@ -36,17 +46,21 @@ def _falha(db, identificacao, momento):
     return MENSAGEM_RECUSA
 
 
-def cadastrar(db, identificacao, senha):
+def cadastrar(db, identificacao, senha, nome_exibicao):
     identificacao = (identificacao or "").strip()
+    nome_exibicao = normalizar_nome_exibicao(nome_exibicao)
     if senha_curta(senha):
         return None, MENSAGEM_SENHA_CURTA
     if not identificacao:
         return None, MENSAGEM_SENHA_CURTA
+    if nome_exibicao is None:
+        return None, MENSAGEM_NOME_EXIBICAO
     if db.query(Piloto).filter_by(identificacao=identificacao).first():
         return None, MENSAGEM_JA_USADA
     piloto = Piloto(
         identificacao=identificacao,
         senha_hash=generate_password_hash(senha),
+        nome_exibicao=nome_exibicao,
         criado_em=agora(),
     )
     db.add(piloto)

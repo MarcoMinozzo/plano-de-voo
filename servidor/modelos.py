@@ -1,9 +1,10 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -40,6 +41,7 @@ class Piloto(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     identificacao: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     senha_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    nome_exibicao: Mapped[str] = mapped_column(String(160), nullable=False)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
@@ -59,6 +61,7 @@ class EmendaRotaer(Base):
             "vigente",
             unique=True,
             postgresql_where=text("vigente"),
+            sqlite_where=text("vigente"),
         ),
     )
 
@@ -104,6 +107,70 @@ class Aeronave(Base):
     consumo_valor: Mapped[float | None] = mapped_column(Float, nullable=True)
     consumo_unidade: Mapped[str | None] = mapped_column(String(20), nullable=True)
     itens_manutencao: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    fontes_tecnicas: Mapped[list["FonteTecnicaAeronave"]] = relationship(
+        cascade="all, delete-orphan",
+        back_populates="aeronave",
+        uselist=True,
+    )
+
+    @property
+    def estimativa_didatica(self):
+        return any(
+            fonte.tipo_fonte in {"secundaria", "sintetica"}
+            for fonte in self.fontes_tecnicas
+            if fonte.selecionada
+        )
+
+    @property
+    def dados_sinteticos(self):
+        return any(
+            fonte.tipo_fonte == "sintetica"
+            for fonte in self.fontes_tecnicas
+            if fonte.selecionada
+        )
+
+
+class FonteTecnicaAeronave(Base):
+    __tablename__ = "fonte_tecnica_aeronave"
+    __table_args__ = (
+        Index(
+            "uq_fonte_tecnica_um_selecionada_por_campo",
+            "aeronave_id",
+            "campo",
+            unique=True,
+            postgresql_where=text("selecionada"),
+            sqlite_where=text("selecionada"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    aeronave_id: Mapped[int] = mapped_column(
+        ForeignKey("aeronave.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    campo: Mapped[str] = mapped_column(String(80), nullable=False)
+    valor: Mapped[float] = mapped_column(Float, nullable=False)
+    unidade: Mapped[str] = mapped_column(String(20), nullable=False)
+    tipo_fonte: Mapped[str] = mapped_column(String(20), nullable=False)
+    publicador: Mapped[str] = mapped_column(String(200), nullable=False)
+    referencia: Mapped[str] = mapped_column(Text, nullable=False)
+    data_publicacao: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    data_consulta: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    modelo_variante: Mapped[str] = mapped_column(String(200), nullable=False)
+    perfil: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    revisao_edicao: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    pagina_tabela: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    selecionada: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    divergencia: Mapped[str | None] = mapped_column(Text, nullable=True)
+    limite_inferior: Mapped[float | None] = mapped_column(Float, nullable=True)
+    limite_superior: Mapped[float | None] = mapped_column(Float, nullable=True)
+    metodo_geracao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    versao_semente: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    incerteza: Mapped[str | None] = mapped_column(Text, nullable=True)
+    justificativa_comparabilidade: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    aeronave: Mapped["Aeronave"] = relationship(back_populates="fontes_tecnicas")
 
 
 class Aerodromo(Base):
@@ -115,6 +182,8 @@ class Aerodromo(Base):
     lat: Mapped[float] = mapped_column(Float, nullable=False)
     lon: Mapped[float] = mapped_column(Float, nullable=False)
     elev_m: Mapped[float] = mapped_column(Float, nullable=False)
+    rotaer_versao_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    rotaer_atualizado_em: Mapped[date | None] = mapped_column(Date, nullable=True)
     emenda_id: Mapped[int | None] = mapped_column(ForeignKey("emenda_rotaer.id"), nullable=True)
     fonte: Mapped[str] = mapped_column(Text, nullable=False)
 

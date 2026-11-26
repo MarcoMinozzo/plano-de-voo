@@ -1,13 +1,16 @@
 {% extends "base.html" %}
+{% block logo_cabecalho %}{% endblock %}
 {% block titulo %}Cadastro{% endblock %}
 {% block corpo %}
-<section class="vidro">
+<section class="vidro mx-auto my-4 w-[calc(100%-48px)] max-w-[40rem] rounded-3xl bg-aviation-glass p-6 text-aviation-white">
+    <img class="mx-auto mb-4 block h-auto w-[86.4px]" src="{{ url_for('static', filename='casca/emblema-plano-de-voo.png') }}" alt="Plano de voo">
     <h1>Criar acesso</h1>
-    {% if mensagem %}<p class="erro">{{ mensagem }}</p>{% endif %}
-    <form method="post">
-        <label>Identificação <input name="identificacao" required></label>
-        <label>Senha (mínimo 8 caracteres) <input name="senha" type="password" minlength="8" required></label>
-        <button type="submit">Cadastrar</button>
+    {% if mensagem %}<p class="erro text-aviation-yellow">{{ mensagem }}</p>{% endif %}
+    <form class="grid gap-[0.6rem]" method="post">
+        <label class="grid gap-[0.2rem]">Identificação <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="identificacao" required></label>
+        <label class="grid gap-[0.2rem]">Senha (mínimo 8 caracteres) <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="senha" type="password" minlength="8" required></label>
+        <label class="grid gap-[0.2rem]">Nome de exibição <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="nome_exibicao" maxlength="160" required></label>
+        <button class="min-h-11 cursor-pointer rounded-2xl border-0 bg-aviation-yellow font-[inherit] text-aviation-navy" type="submit">Cadastrar</button>
     </form>
 </section>
 {% endblock %}

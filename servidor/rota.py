@@ -1,7 +1,10 @@
 import heapq
+from collections import defaultdict
 from datetime import timedelta
+from math import floor
 
 from servidor.calculo import RESERVA_HORAS, calcular, distancia_nm
+from servidor.proveniencia import formatar_fonte
 
 CRITERIO = "menor tempo de voo"
 MOTIVO_COMBUSTIVEL = (
@@ -12,9 +15,15 @@ MOTIVO_SOL = "Um trecho chegaria depois do pôr do sol no aeródromo de chegada.
 
 
 def hipotese_reabastecimento(aeronave):
+    fontes = getattr(aeronave, "procedencia_tecnica", {})
+    fonte = (
+        formatar_fonte(fontes.get("combustivel_utilizavel"))
+        if fontes
+        else aeronave.fonte_manual or "fonte indisponível"
+    )
     return (
-        "Em cada escala, a hipótese é reabastecer até o combustível de planejamento do manual. "
-        f"Fonte: {aeronave.fonte_manual}."
+        "Em cada escala, a hipótese é reabastecer até o combustível de planejamento "
+        f"da fonte técnica aplicável. Fonte: {fonte}."
     )
 
 
@@ -81,7 +90,17 @@ def _sol_bloqueia(sol_de, destino, chegada):
     return False, "disponivel"
 
 
-def escolher(aeronave, aerodromos, origem, destino, particulares, vento_de=None, sol_de=None, hora_partida=None):
+def escolher(
+    aeronave,
+    aerodromos,
+    origem,
+    destino,
+    particulares,
+    vento_de=None,
+    sol_de=None,
+    hora_partida=None,
+    limite_vento_kt=None,
+):
     frase = hipotese_reabastecimento(aeronave)
     lugares = [a for a in aerodromos if getattr(a, "tipo", "aerodromo") == "aerodromo"]
     por_icao = {a.icao: a for a in lugares}
@@ -98,18 +117,33 @@ def escolher(aeronave, aerodromos, origem, destino, particulares, vento_de=None,
 
     alcance = alcance_nm(aeronave)
     caixa = (alcance / 25.0) + 0.01 if alcance > 0 else 0
-    arestas = {icao: [] for icao in por_icao}
-    for saida in lugares:
-        for chegada in lugares:
-            if saida.icao == chegada.icao:
-                continue
-            if caixa and (
-                abs(saida.lat - chegada.lat) > caixa or abs(saida.lon - chegada.lon) > caixa
-            ):
-                continue
-            milhas = distancia_nm(saida.lat, saida.lon, chegada.lat, chegada.lon)
-            if milhas <= alcance:
-                arestas[saida.icao].append(chegada)
+    celulas = defaultdict(list)
+    if caixa:
+        for lugar in lugares:
+            celula = (floor(lugar.lat / caixa), floor(lugar.lon / caixa))
+            celulas[celula].append(lugar)
+
+    def vizinhos(saida):
+        if not caixa:
+            return []
+        x, y = floor(saida.lat / caixa), floor(saida.lon / caixa)
+        encontrados = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for chegada in celulas.get((x + dx, y + dy), ()):
+                    if chegada.icao == saida.icao:
+                        continue
+                    if (
+                        abs(saida.lat - chegada.lat) > caixa
+                        or abs(saida.lon - chegada.lon) > caixa
+                    ):
+                        continue
+                    milhas = distancia_nm(
+                        saida.lat, saida.lon, chegada.lat, chegada.lon
+                    )
+                    if milhas <= alcance:
+                        encontrados.append((chegada, milhas))
+        return sorted(encontrados, key=lambda item: item[0].icao)
 
     contas = {}
 
@@ -122,35 +156,76 @@ def escolher(aeronave, aerodromos, origem, destino, particulares, vento_de=None,
             contas[chave] = calcular(aeronave, saida, chegada, particulares, vento)
         return contas[chave]
 
+    if limite_vento_kt is None:
+        limite_vento_kt = 200.0 if vento_de is not None else 0.0
+    velocidade_maxima = float(aeronave.velocidade_valor) + max(
+        float(limite_vento_kt), 0.0
+    )
+
+    def heuristica(lugar):
+        if velocidade_maxima <= 0:
+            return 0.0
+        return distancia_nm(
+            lugar.lat, lugar.lon, destino.lat, destino.lon
+        ) / velocidade_maxima
+
+    def estado_melhor(candidato, atual):
+        if candidato[0] < atual[0] - 1e-9:
+            return True
+        if candidato[0] > atual[0] + 1e-9:
+            return False
+        return candidato[1:] < atual[1:]
+
     def buscar(usar_sol):
-        heap = [(0.0, 0, 0.0, (origem.icao,))]
-        visitados = set()
+        inicial = (0.0, 0, 0.0, (origem.icao,))
+        heap = [(heuristica(origem), *inicial)]
+        melhores = {origem.icao: inicial}
+        melhor_destino = None
         while heap:
-            tempo, etapas, dist, caminho = heapq.heappop(heap)
+            estimativa, tempo, etapas, dist, caminho = heapq.heappop(heap)
             atual = caminho[-1]
-            if atual in visitados:
+            estado = (tempo, etapas, dist, caminho)
+            if (
+                melhor_destino is not None
+                and estimativa > melhor_destino[0] + 2e-9
+            ):
+                break
+            if estado != melhores.get(atual):
                 continue
-            visitados.add(atual)
+            if usar_sol and atual != origem.icao and hora_partida is not None:
+                chegada = hora_partida + timedelta(hours=tempo)
+                bloqueia, _estado = _sol_bloqueia(
+                    sol_de, por_icao[atual], chegada
+                )
+                if bloqueia:
+                    continue
             if atual == destino.icao:
-                return tempo, dist, caminho
+                if melhor_destino is None or estado_melhor(
+                    estado, melhor_destino
+                ):
+                    melhor_destino = estado
+                continue
             aero = por_icao[atual]
-            for vizinho in arestas[atual]:
+            for vizinho, milhas in vizinhos(aero):
                 if vizinho.icao in caminho:
                     continue
                 conta = conta_de(aero, vizinho)
                 if not conta.get("grava") or not conta.get("cabe_reserva"):
                     continue
-                leg_h = round(float(conta["tempo_h"]), 2)
-                chegada_h = round(tempo + leg_h, 2)
-                if usar_sol and hora_partida is not None:
-                    chegada = hora_partida + timedelta(hours=chegada_h)
-                    bloqueia, _estado = _sol_bloqueia(sol_de, vizinho, chegada)
-                    if bloqueia:
-                        continue
+                chegada_h = tempo + float(conta["tempo_h"])
                 novo = caminho + (vizinho.icao,)
-                milhas = distancia_nm(aero.lat, aero.lon, vizinho.lat, vizinho.lon)
-                heapq.heappush(heap, (chegada_h, etapas + 1, dist + milhas, novo))
-        return None
+                estado_novo = (chegada_h, etapas + 1, dist + milhas, novo)
+                anterior = melhores.get(vizinho.icao)
+                if anterior is not None and not estado_melhor(
+                    estado_novo, anterior
+                ):
+                    continue
+                melhores[vizinho.icao] = estado_novo
+                heapq.heappush(
+                    heap,
+                    (chegada_h + heuristica(vizinho), *estado_novo),
+                )
+        return melhor_destino
 
     usar_sol = sol_de is not None and hora_partida is not None
     achado = buscar(usar_sol)
@@ -170,15 +245,15 @@ def escolher(aeronave, aerodromos, origem, destino, particulares, vento_de=None,
             "distancia_total": None,
         }
 
-    tempo_total, distancia_total, caminho = achado
+    tempo_total, _etapas, distancia_total, caminho = achado
     trechos = []
     acumulado = 0.0
     for ordem, (saida_icao, chegada_icao) in enumerate(zip(caminho, caminho[1:]), start=1):
         saida = por_icao[saida_icao]
         chegada = por_icao[chegada_icao]
         conta = conta_de(saida, chegada)
-        leg_h = round(float(conta["tempo_h"]), 2)
-        acumulado = round(acumulado + leg_h, 2)
+        leg_h = float(conta["tempo_h"])
+        acumulado += leg_h
         sol_estado = "indisponivel"
         if hora_partida is not None:
             instante = hora_partida + timedelta(hours=acumulado)

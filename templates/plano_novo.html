@@ -2,65 +2,89 @@
 {% block titulo %}{% if action %}Alterar plano{% else %}Novo plano{% endif %}{% endblock %}
 {% block corpo %}
 {% set info = informado or {} %}
-<section class="vidro" id="card-plano">
+{% set origem_padrao = info.origem or (aerodromos[0].icao if aerodromos else "") %}
+{% set destino_padrao = info.destino or (aerodromos[1].icao if aerodromos|length > 1 else (aerodromos[0].icao if aerodromos else "")) %}
+<section class="vidro mx-auto my-4 w-[calc(100%-24px)] max-w-[40rem] rounded-3xl bg-aviation-glass p-6 text-aviation-white" id="card-plano">
 <h1>{% if action %}Alterar plano{% else %}Novo plano{% endif %}</h1>
-{% if mensagem %}<p class="erro">{{ mensagem }}</p>{% endif %}
+{% if mensagem %}<p class="erro text-aviation-yellow">{{ mensagem }}</p>{% endif %}
 {% if catalogo_estado == "local" %}
 <p>Lista local. Não é o catálogo do país inteiro.</p>
 {% elif catalogo_estado != "disponivel" %}
 <p>Catálogo nacional indisponível.</p>
 {% endif %}
-<form method="post" action="{{ action or url_for('planos') }}">
-    <label>Tipo de avião
-        <select name="aeronave_id" required>
-            {% for aeronave in aeronaves %}
-            <option value="{{ aeronave.id }}" {% if info.aeronave_id|string == aeronave.id|string or (not info.aeronave_id and loop.first) %}selected{% endif %}>{{ aeronave.nome }}{% if aeronave.manual_estado == "ausente" %} — sem manual{% endif %}</option>
+{% if modelos_estado != "disponivel" %}
+<p>Catálogo nacional de aeronaves factuais indisponível. Os perfis sintéticos didáticos são exibidos separadamente.</p>
+{% elif not modelos_fatuais and not perfis_sinteticos %}
+<p>Nenhuma aeronave com dados técnicos completos e fonte rastreável está disponível.</p>
+{% endif %}
+<form class="grid gap-[0.6rem]" method="post" action="{{ action or url_for('planos') }}">
+    <label class="grid gap-[0.2rem]">Tipo de avião
+        <select class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="aeronave_id" required {% if not aeronaves %}disabled{% endif %}>
+            {% if modelos_fatuais %}
+            <optgroup label="Aeronaves com fontes rastreáveis">
+            {% for aeronave in modelos_fatuais %}
+            <option value="{{ aeronave.id }}" {% if info.aeronave_id|string == aeronave.id|string or (not info.aeronave_id and aeronave.id == aeronave_padrao_id) %}selected{% endif %}>{{ aeronave.nome }}</option>
             {% endfor %}
+            </optgroup>
+            {% endif %}
+            {% if perfis_sinteticos %}
+            <optgroup label="Perfis sintéticos didáticos">
+            {% for aeronave in perfis_sinteticos %}
+            <option value="{{ aeronave.id }}" {% if info.aeronave_id|string == aeronave.id|string or (not info.aeronave_id and aeronave.id == aeronave_padrao_id) %}selected{% endif %}>{{ aeronave.nome }}</option>
+            {% endfor %}
+            </optgroup>
+            {% endif %}
         </select>
     </label>
-    {% if not aeronaves %}
-    <p>Nenhuma aeronave com manual gravado está disponível.</p>
-    {% endif %}
-    {% if aerodromos|length > 12 %}
-    <label>Filtrar origem
-        <input type="search" data-filtra="origem" placeholder="Identificador ou nome" autocomplete="off">
-    </label>
-    {% endif %}
-    <label>Origem
-        <select name="origem" id="origem" required>
+    <div class="grid gap-[0.2rem]" data-combobox="origem">
+        <label for="origem">Origem</label>
+        <select class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="origem" id="origem" required data-fallback-aerodromo>
             {% for aero in aerodromos %}
             <option value="{{ aero.icao }}" {% if info.origem == aero.icao or (not info.origem and loop.first) %}selected{% endif %}>{{ aero.icao }} — {{ aero.nome }}</option>
             {% endfor %}
         </select>
-    </label>
-    {% if aerodromos|length > 12 %}
-    <label>Filtrar destino
-        <input type="search" data-filtra="destino" placeholder="Identificador ou nome" autocomplete="off">
-    </label>
-    {% endif %}
-    <label>Destino
-        <select name="destino" id="destino" required>
-            {% set destino_padrao = aerodromos[1].icao if aerodromos|length > 1 else (aerodromos[0].icao if aerodromos else "") %}
+        <div class="relative" data-controle-busca hidden>
+            <input class="w-full rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" type="search" id="origem-busca" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="origem-opcoes" aria-describedby="origem-status" data-busca-aerodromo required disabled autocomplete="off" placeholder="Digite parte do código ou nome">
+            <ul class="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-slate-300 bg-aviation-white p-1 text-aviation-navy shadow-lg" id="origem-opcoes" role="listbox" hidden>
+            </ul>
+            <p class="mt-1 text-sm text-aviation-white" id="origem-status" role="status" aria-live="polite" hidden></p>
+        </div>
+    </div>
+    <div class="grid gap-[0.2rem]" data-combobox="destino">
+        <label for="destino">Destino</label>
+        <select class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="destino" id="destino" required data-fallback-aerodromo>
             {% for aero in aerodromos %}
             <option value="{{ aero.icao }}" {% if info.destino == aero.icao or (not info.destino and aero.icao == destino_padrao) %}selected{% endif %}>{{ aero.icao }} — {{ aero.nome }}</option>
             {% endfor %}
         </select>
-    </label>
-    <label>Data e hora <input name="hora_partida" type="datetime-local" value="{{ info.hora_partida or '' }}" required></label>
-    <div id="confirma-hora" {% if not mostrar_confirmacao %}hidden{% endif %}>
-        <label><input name="confirmar_hora" type="checkbox" value="true" {% if info.confirmar_hora %}checked{% endif %}> A hora já passou e eu quero planejar mesmo assim</label>
+        <div class="relative" data-controle-busca hidden>
+            <input class="w-full rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" type="search" id="destino-busca" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" aria-controls="destino-opcoes" aria-describedby="destino-status" data-busca-aerodromo required disabled autocomplete="off" placeholder="Digite parte do código ou nome">
+            <ul class="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-slate-300 bg-aviation-white p-1 text-aviation-navy shadow-lg" id="destino-opcoes" role="listbox" hidden>
+            </ul>
+            <p class="mt-1 text-sm text-aviation-white" id="destino-status" role="status" aria-live="polite" hidden></p>
+        </div>
     </div>
-    <label>Número de passageiros <input name="numero_passageiros" type="number" min="1" value="{{ info.numero_passageiros or '' }}" required></label>
-    <label>Peso das pessoas (kg) <input name="peso_pessoas_kg" type="number" step="0.1" min="0" value="{{ info.peso_pessoas_kg if info.peso_pessoas_kg is not none else '' }}" required></label>
-    <label>Peso da bagagem (kg) <input name="peso_bagagem_kg" type="number" step="0.1" min="0" value="{{ info.peso_bagagem_kg if info.peso_bagagem_kg is not none else '' }}" required></label>
-    <button type="submit">Calcular</button>
+    <label class="grid gap-[0.2rem]">Data e hora <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="hora_partida" type="datetime-local" value="{{ info.hora_partida or '' }}" required></label>
+    <div id="confirma-hora" {% if not mostrar_confirmacao %}hidden{% endif %}>
+        <label class="grid gap-[0.2rem]"><input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="confirmar_hora" type="checkbox" value="true" {% if info.confirmar_hora %}checked{% endif %}> A hora já passou e eu quero planejar mesmo assim</label>
+    </div>
+    <label class="grid gap-[0.2rem]">Número de passageiros <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="numero_passageiros" type="number" min="1" value="{{ info.numero_passageiros or '' }}" required></label>
+    <label class="grid gap-[0.2rem]">Peso das pessoas (kg) <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="peso_pessoas_kg" type="number" step="0.1" min="0" value="{{ info.peso_pessoas_kg if info.peso_pessoas_kg is not none else '' }}" required></label>
+    <label class="grid gap-[0.2rem]">Peso da bagagem (kg) <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="peso_bagagem_kg" type="number" step="0.1" min="0" value="{{ info.peso_bagagem_kg if info.peso_bagagem_kg is not none else '' }}" required></label>
+    <button class="min-h-11 cursor-pointer rounded-2xl border-0 bg-aviation-yellow font-[inherit] text-aviation-navy" type="submit" {% if not aeronaves %}disabled{% endif %}>Calcular</button>
 </form>
-<article class="aviso">Apoio ao planejamento. Não substitui o manual da aeronave, o treinamento de voo nem a norma vigente. Não é autorização de voo.</article>
+<article class="aviso mt-4">
+    {% if perfis_sinteticos %}
+    Cálculos e dados dos perfis sintéticos são exclusivamente didáticos: valores não validados, que não representam dados do modelo associado. Não substituem o manual da aeronave, o treinamento de voo nem a norma vigente; não são adequados para planejamento de voo real e não autorizam o voo.
+    {% else %}
+    Apoio ao planejamento. Não substitui o manual da aeronave, o treinamento de voo nem a norma vigente. Não é autorização de voo.
+    {% endif %}
+</article>
 </section>
-<div class="ampulheta" id="espera" hidden>
+<div class="ampulheta px-3 py-12 text-center text-aviation-white" id="espera" hidden>
+    <span class="mx-auto mb-4 block size-12 animate-spin rounded-full border-4 border-solid border-[rgba(240,160,0,0.35)] border-t-aviation-yellow" aria-hidden="true"></span>
     <p>Em processamento</p>
 </div>
-{% if aerodromos|length > 12 %}
 <script>
 function planoCasa(texto, codigo, nome) {
   function semAcento(valor) {
@@ -71,30 +95,143 @@ function planoCasa(texto, codigo, nome) {
   return semAcento(codigo).indexOf(busca) !== -1 || semAcento(nome).indexOf(busca) !== -1;
 }
 (function () {
-  document.querySelectorAll("[data-filtra]").forEach(function (filtro) {
-    const select = document.getElementById(filtro.getAttribute("data-filtra"));
-    if (!select) return;
-    const todas = Array.prototype.map.call(select.options, function (opcao) {
-      const partes = opcao.text.split(" — ");
-      return {value: opcao.value, text: opcao.text, codigo: partes[0], nome: partes.slice(1).join(" — ")};
+  document.querySelectorAll("[data-combobox]").forEach(function (container) {
+    const nome = container.dataset.combobox;
+    const seletor = container.querySelector("[data-fallback-aerodromo]");
+    const controle = container.querySelector("[data-controle-busca]");
+    const campo = container.querySelector("[data-busca-aerodromo]");
+    const rotulo = container.querySelector("label");
+    const lista = controle.querySelector('[role="listbox"]');
+    const status = controle.querySelector('[role="status"]');
+    const opcoes = Array.from(seletor.options).map(function (item, indice) {
+      const opcao = document.createElement("li");
+      const separador = item.textContent.indexOf(" — ");
+      opcao.id = nome + "-opcao-" + (indice + 1);
+      opcao.dataset.icao = item.value;
+      opcao.dataset.codigo = item.value;
+      opcao.dataset.nome = separador < 0
+        ? item.textContent
+        : item.textContent.slice(separador + 3);
+      opcao.textContent = item.textContent;
+      opcao.hidden = true;
+      opcao.setAttribute("role", "option");
+      opcao.setAttribute("aria-selected", item.value === seletor.value ? "true" : "false");
+      opcao.classList.add(
+        "cursor-pointer",
+        "rounded-md",
+        "p-2",
+        "hover:bg-aviation-navy",
+        "hover:text-aviation-white"
+      );
+      lista.appendChild(opcao);
+      return opcao;
     });
-    filtro.addEventListener("input", function () {
-      const escolhido = select.value;
-      select.replaceChildren();
-      todas.forEach(function (item) {
-        if (!planoCasa(filtro.value, item.codigo, item.nome)) return;
-        const opcao = document.createElement("option");
-        opcao.value = item.value;
-        opcao.textContent = item.text;
-        if (item.value === escolhido) opcao.selected = true;
-        select.appendChild(opcao);
+    let indiceAtivo = -1;
+    campo.value = seletor.options[seletor.selectedIndex]?.textContent || "";
+    let anterior = {codigo: seletor.value, rotulo: campo.value};
+    campo.disabled = false;
+    controle.hidden = false;
+    seletor.required = false;
+    seletor.hidden = true;
+    rotulo.htmlFor = campo.id;
+
+    function visiveis() {
+      return opcoes.filter(function (opcao) { return !opcao.hidden; });
+    }
+
+    function fechar() {
+      lista.hidden = true;
+      status.hidden = true;
+      campo.setAttribute("aria-expanded", "false");
+      campo.removeAttribute("aria-activedescendant");
+      indiceAtivo = -1;
+    }
+
+    function abrir(termo) {
+      let total = 0;
+      opcoes.forEach(function (opcao) {
+        const corresponde = planoCasa(termo, opcao.dataset.codigo, opcao.dataset.nome);
+        opcao.hidden = !corresponde;
+        opcao.setAttribute(
+          "aria-selected",
+          corresponde && opcao.dataset.icao === seletor.value ? "true" : "false"
+        );
+        opcao.classList.remove("bg-aviation-navy", "text-aviation-white");
+        if (corresponde) total += 1;
       });
-      if (!select.value && select.options.length) select.selectedIndex = 0;
+      lista.hidden = false;
+      status.hidden = false;
+      status.textContent = total
+        ? total + (total === 1 ? " aeródromo encontrado." : " aeródromos encontrados.")
+        : "Nenhum aeródromo encontrado.";
+      campo.setAttribute("aria-expanded", "true");
+      campo.removeAttribute("aria-activedescendant");
+      indiceAtivo = -1;
+    }
+
+    function ativar(indice) {
+      const disponiveis = visiveis();
+      if (!disponiveis.length) return;
+      indiceAtivo = Math.max(0, Math.min(indice, disponiveis.length - 1));
+      opcoes.forEach(function (opcao) {
+        opcao.setAttribute("aria-selected", "false");
+        opcao.classList.remove("bg-aviation-navy", "text-aviation-white");
+      });
+      const opcao = disponiveis[indiceAtivo];
+      opcao.setAttribute("aria-selected", "true");
+      opcao.classList.add("bg-aviation-navy", "text-aviation-white");
+      campo.setAttribute("aria-activedescendant", opcao.id);
+      opcao.scrollIntoView({block: "nearest"});
+    }
+
+    function escolher(opcao) {
+      campo.value = opcao.textContent.trim();
+      seletor.value = opcao.dataset.icao;
+      anterior = {codigo: seletor.value, rotulo: campo.value};
+      campo.setCustomValidity("");
+      campo.focus();
+      fechar();
+    }
+
+    campo.addEventListener("focus", function () { abrir(""); });
+    campo.addEventListener("input", function () {
+      seletor.value = "";
+      campo.setCustomValidity("Escolha um aeródromo da lista.");
+      abrir(campo.value);
+    });
+    campo.addEventListener("keydown", function (evento) {
+      if (evento.key === "ArrowDown" || evento.key === "ArrowUp") {
+        evento.preventDefault();
+        if (lista.hidden) abrir(campo.value);
+        const passo = evento.key === "ArrowDown" ? 1 : -1;
+        const inicial = indiceAtivo < 0
+          ? (passo > 0 ? 0 : visiveis().length - 1)
+          : indiceAtivo + passo;
+        ativar(inicial);
+      } else if (evento.key === "Enter" && indiceAtivo >= 0) {
+        evento.preventDefault();
+        escolher(visiveis()[indiceAtivo]);
+      } else if (evento.key === "Escape" && !lista.hidden) {
+        evento.preventDefault();
+        campo.value = anterior.rotulo;
+        seletor.value = anterior.codigo;
+        campo.setCustomValidity("");
+        fechar();
+      }
+    });
+    lista.addEventListener("click", function (evento) {
+      const opcao = evento.target.closest('[role="option"]');
+      if (opcao && !opcao.hidden) escolher(opcao);
+    });
+    document.addEventListener("click", function (evento) {
+      if (!container.contains(evento.target)) fechar();
+    });
+    document.addEventListener("focusin", function (evento) {
+      if (!container.contains(evento.target)) fechar();
     });
   });
 })();
 </script>
-{% endif %}
 <script id="espera-voo">
 (function () {
   const form = document.querySelector("#card-plano form");

@@ -1,6 +1,7 @@
 from math import asin, atan2, cos, degrees, radians, sin, sqrt
 
 from servidor.modelos import Aeronave
+from servidor.proveniencia import formatar_fonte
 
 FONTE_RESERVA = "voo visual diurno, reserva de 30 min"
 FONTE_AVGAS = "densidade de avgas 2,72 kg/gal"
@@ -84,7 +85,16 @@ def calcular(aeronave, origem, destino, particulares, vento=None):
     nm = distancia_nm(origem.lat, origem.lon, destino.lat, destino.lon)
     tas = float(aeronave.velocidade_valor)
     proa = proa_graus(origem.lat, origem.lon, destino.lat, destino.lon)
-    fonte_manual = aeronave.fonte_manual
+    fontes = getattr(aeronave, "procedencia_tecnica", {})
+    fonte_velocidade = formatar_fonte(fontes.get("velocidade_cruzeiro"))
+    fonte_consumo = formatar_fonte(fontes.get("consumo_cruzeiro"))
+    fonte_vazio = formatar_fonte(fontes.get("peso_vazio"))
+    fonte_bagagem = formatar_fonte(fontes.get("bagagem_maxima"))
+    fonte_combustivel = formatar_fonte(fontes.get("combustivel_utilizavel"))
+    if not fontes:
+        fonte_velocidade = fonte_consumo = fonte_vazio = fonte_bagagem = fonte_combustivel = (
+            aeronave.fonte_manual or "fonte indisponível"
+        )
     vento_aplicado = False
     efeito = "vento não aplicado"
     gs = tas
@@ -118,11 +128,17 @@ def calcular(aeronave, origem, destino, particulares, vento=None):
         )
 
     fonte_coord = f"coordenadas de {origem.icao} e {destino.icao}, {origem.fonte}"
+    fonte_tempo = f"{fonte_velocidade}; {fonte_coord}"
+    fonte_consumo_trecho = f"{fonte_velocidade}; {fonte_consumo}; {fonte_coord}"
+    fonte_peso = (
+        f"peso vazio: {fonte_vazio}; bagagem: {fonte_bagagem}; "
+        f"combustível utilizável: {fonte_combustivel}"
+    )
     linhas = [
         _linha("Distância", round(km, 1), "km", fonte_coord),
         _linha("Distância", round(nm, 1), "nm", fonte_coord),
         _linha("Proa", round(proa, 0), "graus", fonte_coord),
-        _linha("Velocidade de planejamento", tas, aeronave.velocidade_unidade, fonte_manual),
+        _linha("Velocidade de planejamento", tas, aeronave.velocidade_unidade, fonte_velocidade),
     ]
     if vento_aplicado:
         linhas.append(
@@ -130,17 +146,37 @@ def calcular(aeronave, origem, destino, particulares, vento=None):
                 "Velocidade em relação ao solo",
                 round(gs, 1),
                 "kt",
-                vento.get("fonte", fonte_manual),
+                vento.get("fonte", fonte_velocidade),
             )
         )
     linhas.extend(
         [
-            _linha("Tempo de voo", round(horas, 2), "h", fonte_manual),
-            _linha("Combustível de voo", round(necessario, 2), aeronave.consumo_unidade.split("/")[0], fonte_manual),
-            _linha("Reserva", round(reserva, 2), aeronave.combustivel_unidade, FONTE_RESERVA),
-            _linha("Combustível necessário", round(total, 2), aeronave.combustivel_unidade, fonte_manual),
-            _linha("Peso total", round(peso_total, 1), "kg", fonte_manual),
-            _linha("Peso de combustível", round(peso_combustivel, 1), "kg", FONTE_AVGAS),
+            _linha("Tempo de voo", round(horas, 2), "h", fonte_tempo),
+            _linha(
+                "Combustível de voo",
+                round(necessario, 2),
+                aeronave.consumo_unidade.split("/")[0],
+                fonte_consumo_trecho,
+            ),
+            _linha(
+                "Reserva",
+                round(reserva, 2),
+                aeronave.combustivel_unidade,
+                f"{FONTE_RESERVA}; consumo: {fonte_consumo}",
+            ),
+            _linha(
+                "Combustível necessário",
+                round(total, 2),
+                aeronave.combustivel_unidade,
+                fonte_consumo_trecho,
+            ),
+            _linha("Peso total", round(peso_total, 1), "kg", fonte_peso),
+            _linha(
+                "Peso de combustível",
+                round(peso_combustivel, 1),
+                "kg",
+                f"{FONTE_AVGAS}; combustível utilizável: {fonte_combustivel}",
+            ),
         ]
     )
     return {

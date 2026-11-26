@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from xml.etree import ElementTree
@@ -28,14 +29,30 @@ def meteorologia(icao, getter=None):
         if not dados:
             return dict(INDISPONIVEL)
         item = dados[0]
-        saida["metar"] = {
+        observacao = {
             "icao": icao,
             "raw": item.get("rawOb", ""),
             "hora": item.get("reportTime", ""),
             "temp_c": item.get("temp"),
             "vento_kt": item.get("wspd"),
             "unidade_vento": "kt",
+            "fonte": saida["fonte"],
         }
+        campos = {
+            "dewp": "ponto_orvalho_c",
+            "wdir": "direcao_vento",
+            "wgst": "rajada_kt",
+            "visib": "visibilidade_sm",
+            "altim": "altimetro_hpa",
+            "wxString": "fenomenos",
+            "vertVis": "visibilidade_vertical_ft",
+            "clouds": "nuvens",
+        }
+        for campo, chave in campos.items():
+            valor = item.get(campo)
+            if valor is not None and valor != "":
+                observacao[chave] = valor
+        saida["metar"] = observacao
     except Exception:
         return dict(INDISPONIVEL)
     try:
@@ -57,7 +74,10 @@ def meteorologia(icao, getter=None):
 def radar(origem, destino, getter=None):
     chave = os.environ.get("REDEMET_API_KEY", "").strip()
     if not chave:
-        return dict(INDISPONIVEL)
+        return {
+            "estado": "indisponivel",
+            "motivo": "Chave REDEMET não configurada.",
+        }
     try:
         resposta = _get(
             "https://api-redemet.decea.mil.br/produtos/radar/maxcappi",
@@ -89,9 +109,15 @@ def radar(origem, destino, getter=None):
                         "lon_max": lon_max,
                         "fonte": "REDEMET MaxCappi",
                     }
-        return dict(INDISPONIVEL)
+        return {
+            "estado": "indisponivel",
+            "motivo": "Radar sem dados geográficos válidos para o trecho.",
+        }
     except Exception:
-        return dict(INDISPONIVEL)
+        return {
+            "estado": "indisponivel",
+            "motivo": "Fonte REDEMET indisponível.",
+        }
 
 
 def _tag(elemento):
@@ -210,7 +236,7 @@ def carta(origem, destino, getter=None):
         return dict(INDISPONIVEL)
     try:
         resposta = _get(
-            "https://aisweb.decea.gov.br/api/",
+            "https://api.decea.mil.br/aisweb/",
             {
                 "apiKey": chave,
                 "apiPass": senha,
@@ -299,16 +325,72 @@ def linhas_boletim(meteorologia):
     return linhas
 
 
-def buscar(origem, destino, getter=None):
-    met_origem = meteorologia(origem.icao, getter)
-    met_destino = meteorologia(destino.icao, getter)
-    if met_origem.get("estado") == "indisponivel" and met_destino.get("estado") == "indisponivel":
-        meteorologia_plano = dict(INDISPONIVEL)
+def buscar(origem, destino, getter=None, *, aerodromos=None, vento=None):
+    lugares = list(aerodromos or (origem, destino))
+    for lugar in (origem, destino):
+        if all(aero.icao != lugar.icao for aero in lugares):
+            lugares.append(lugar)
+    boletins = {}
+    for lugar in lugares:
+        if lugar.icao in boletins:
+            continue
+        boletim = meteorologia(lugar.icao, getter)
+        if "fonte" not in boletim:
+            boletim = {**boletim, "fonte": "Aviation Weather Center"}
+        boletins[lugar.icao] = boletim
+    if any(item.get("estado") == "disponivel" for item in boletins.values()):
+        meteorologia_plano = {
+            "estado": "disponivel",
+            "origem": boletins[origem.icao],
+            "destino": boletins[destino.icao],
+            "aerodromos": boletins,
+        }
     else:
-        meteorologia_plano = {"estado": "disponivel", "origem": met_origem, "destino": met_destino}
+        meteorologia_plano = {
+            "estado": "indisponivel",
+            "origem": boletins[origem.icao],
+            "destino": boletins[destino.icao],
+            "aerodromos": boletins,
+        }
     return {
         "meteorologia": meteorologia_plano,
-        "vento": vento_area(origem, destino, getter),
+        "vento": vento if vento is not None else vento_area(origem, destino, getter),
         "carta": carta(origem, destino, getter),
         "radar": radar(origem, destino, getter),
     }
+
+
+def campos_metar(metar):
+    observacao = metar if isinstance(metar, dict) else {}
+    definicoes = (
+        ("temp_c", "Temperatura", "°C"),
+        ("ponto_orvalho_c", "Ponto de orvalho", "°C"),
+        ("direcao_vento", "Direção do vento", None),
+        ("vento_kt", "Velocidade do vento", "kt"),
+        ("rajada_kt", "Rajada", "kt"),
+        ("visibilidade_sm", "Visibilidade", "SM"),
+        ("altimetro_hpa", "Altímetro", "hPa"),
+        ("fenomenos", "Fenômenos meteorológicos (código AWC)", "código AWC"),
+        ("visibilidade_vertical_ft", "Visibilidade vertical", "ft"),
+        ("nuvens", "Camadas de nuvens (dados AWC)", "dados AWC"),
+    )
+    campos = []
+    for chave, nome, unidade in definicoes:
+        valor = observacao.get(chave)
+        if chave == "direcao_vento":
+            if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+                unidade = "graus"
+            elif valor not in (None, ""):
+                unidade = "código AWC"
+            else:
+                unidade = "graus ou código AWC"
+        elif chave == "nuvens" and valor is not None:
+            valor = json.dumps(valor, ensure_ascii=False)
+        campos.append(
+            {
+                "nome": nome,
+                "valor": valor if valor is not None and valor != "" else "Indisponível",
+                "unidade": unidade,
+            }
+        )
+    return campos

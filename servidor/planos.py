@@ -1,17 +1,35 @@
 from datetime import datetime, timezone
 
 from servidor.calculo import avaliar_carga
-from servidor.catalogo import PORTE_PEQUENO_KG, emenda_vigente, lugares_da_tela, sol_aerodromo
-from servidor.modelos import Aerodromo, Aeronave, ItemChecklist, PlanoDeVoo, Trecho, agora
+from servidor.catalogo import (
+    PORTE_PEQUENO_KG,
+    emenda_vigente,
+    lugares_da_tela,
+    modelos_visiveis,
+    perfis_sinteticos_visiveis,
+    sol_aerodromo,
+)
+from servidor.modelos import (
+    Aerodromo,
+    Aeronave,
+    ItemChecklist,
+    PlanoDeVoo,
+    Trecho,
+    agora,
+)
 from servidor.pdf_plano import trecho_limite
+from servidor.planos_consulta import (
+    CAMPOS_PARTICULARES,
+    apagar as apagar,
+    do_piloto as do_piloto,
+    listar as listar,
+    marcar_item as marcar_item,
+    para_json as para_json,
+    valores_do_plano as valores_do_plano,
+)
+from servidor.proveniencia import procedencia_aeronave
 from servidor.rota import escolher
 from servidor import tempo as tempo_mod
-
-CAMPOS_PARTICULARES = (
-    "numero_passageiros",
-    "peso_pessoas_kg",
-    "peso_bagagem_kg",
-)
 
 
 def hora_ja_passou(valor):
@@ -19,27 +37,6 @@ def hora_ja_passou(valor):
         return _hora(valor) < agora()
     except (TypeError, ValueError):
         return False
-
-
-def valores_do_plano(plano):
-    dados = {
-        "aeronave_id": plano.aeronave_id,
-        "origem": plano.origem_icao,
-        "destino": plano.destino_icao,
-        "hora_partida": plano.hora_partida.strftime("%Y-%m-%dT%H:%M"),
-    }
-    bruto = dict(plano.dados_particulares or {})
-    if "peso_pessoas_kg" not in bruto:
-        piloto = bruto.get("peso_piloto_kg")
-        passageiro = bruto.get("peso_passageiro_kg")
-        if piloto not in (None, "") or passageiro not in (None, ""):
-            bruto["peso_pessoas_kg"] = float(piloto or 0) + float(passageiro or 0)
-    if "numero_passageiros" not in bruto and bruto.get("ocupantes") not in (None, ""):
-        bruto["numero_passageiros"] = bruto["ocupantes"]
-    for chave in CAMPOS_PARTICULARES:
-        if chave in bruto:
-            dados[chave] = bruto[chave]
-    return dados
 
 
 def _hora(valor):
@@ -63,7 +60,10 @@ def _particulares(dados):
     except (TypeError, ValueError):
         return None, "Dado particular inválido."
     if quantidade < 1:
-        return None, "O número de passageiros inclui o piloto e precisa ser no mínimo 1."
+        return (
+            None,
+            "O número de passageiros inclui o piloto e precisa ser no mínimo 1.",
+        )
     return {
         "numero_passageiros": quantidade,
         "peso_pessoas_kg": pessoas,
@@ -105,9 +105,7 @@ def _aplicar_itens(plano, aeronave, anteriores=None):
 
 def _lugar_nacional(emenda, lugar):
     return (
-        lugar is not None
-        and lugar.tipo == "aerodromo"
-        and lugar.emenda_id == emenda.id
+        lugar is not None and lugar.tipo == "aerodromo" and lugar.emenda_id == emenda.id
     )
 
 
@@ -152,46 +150,113 @@ def _resultado_de(rota, aeronave, particulares):
     }
 
 
-def montar(db, piloto, dados, plano=None):
-    origem_icao = (dados.get("origem") or "").strip().upper()
-    destino_icao = (dados.get("destino") or "").strip().upper()
-    if origem_icao == destino_icao:
-        return None, "Origem e destino precisam ser diferentes."
-    emenda = emenda_vigente(db)
-    origem = db.get(Aerodromo, origem_icao)
-    destino = db.get(Aerodromo, destino_icao)
-    if emenda is None:
-        if origem is None or origem.tipo != "aerodromo" or destino is None or destino.tipo != "aerodromo":
-            return None, "Catálogo nacional indisponível."
-    elif not _lugar_nacional(emenda, origem) or not _lugar_nacional(emenda, destino):
-        return None, "Não é aeródromo de avião na publicação vigente."
+def _aeronave_selecionada(db, dados):
     try:
         aeronave = db.get(Aeronave, int(dados.get("aeronave_id") or 0))
     except (TypeError, ValueError):
         aeronave = None
     if aeronave is None:
         return None, "Aeronave sem manual disponível."
+    if aeronave.manual_estado == "proxy_sintetico":
+        perfis = perfis_sinteticos_visiveis(db)
+        if not any(perfil.id == aeronave.id for perfil in perfis):
+            return (
+                None,
+                f"Perfil sintético didático fora da lista permitida: {aeronave.nome}.",
+            )
+        procedencia = procedencia_aeronave(db, aeronave)
+        if any(fonte is None for fonte in procedencia.values()):
+            return None, f"Perfil sintético didático incompleto: {aeronave.nome}."
+        return aeronave, None
+
+    estado_modelos, modelos = modelos_visiveis(db)
+    if estado_modelos != "disponivel":
+        return None, "Catálogo nacional de aeronaves indisponível."
+    if not any(modelo.id == aeronave.id for modelo in modelos):
+        return None, f"Aeronave fora da seleção elegível do MVP: {aeronave.nome}."
     if aeronave.manual_estado == "ausente":
         return None, f"Manual ausente: {aeronave.nome}."
-    if aeronave.peso_max_decolagem_kg is None or aeronave.peso_max_decolagem_kg > PORTE_PEQUENO_KG:
+    if (
+        aeronave.peso_max_decolagem_kg is None
+        or aeronave.peso_max_decolagem_kg > PORTE_PEQUENO_KG
+    ):
         return None, "Avião acima de 5.670 kg, fora do catálogo de avião pequeno."
+    return aeronave, None
+
+
+def _aerodromos_selecionados(db, origem_icao, destino_icao):
+    emenda = emenda_vigente(db)
+    origem = db.get(Aerodromo, origem_icao)
+    destino = db.get(Aerodromo, destino_icao)
+    if emenda is None:
+        return None, None, "Catálogo nacional indisponível."
+    if not _lugar_nacional(emenda, origem) or not _lugar_nacional(emenda, destino):
+        return None, None, "Não é aeródromo de avião na publicação vigente."
+    return origem, destino, None
+
+
+def _vento_para_rota(vento_plano):
+    if not vento_plano or vento_plano.get("estado") != "disponivel":
+        return None, 0.0
+
+    def vento_de(_saida, _chegada):
+        return vento_plano
+
+    return vento_de, float(vento_plano["velocidade_kt"])
+
+
+def _preparar_entrada(db, dados):
+    origem_icao = (dados.get("origem") or "").strip().upper()
+    destino_icao = (dados.get("destino") or "").strip().upper()
+    if origem_icao == destino_icao:
+        return None, "Origem e destino precisam ser diferentes."
+    aeronave, erro = _aeronave_selecionada(db, dados)
+    if erro is not None:
+        return None, erro
+    origem, destino, erro = _aerodromos_selecionados(db, origem_icao, destino_icao)
+    if erro is not None:
+        if aeronave.manual_estado == "proxy_sintetico":
+            erro = "Catálogo ROTAER oficial vigente indisponível."
+        return None, erro
     try:
         hora = _hora(dados.get("hora_partida"))
     except (TypeError, ValueError):
         return None, "Hora de partida inválida."
     if hora < agora() and not dados.get("confirmar_hora"):
-        return None, "Hora de partida no passado. Confirme se ainda quer planejar esse horário."
+        return (
+            None,
+            "Hora de partida no passado. Confirme se ainda quer planejar esse horário.",
+        )
     particulares, erro = _particulares(dados)
     if erro:
         return None, erro
-    fontes = tempo_mod.buscar(origem, destino)
-    vento_plano = fontes["vento"]
-    cache_sol = {}
+    return (
+        origem_icao,
+        destino_icao,
+        aeronave,
+        origem,
+        destino,
+        hora,
+        particulares,
+    ), None
 
-    def vento_de(_saida, _chegada):
-        if not vento_plano or vento_plano.get("estado") != "disponivel":
-            return {"estado": "indisponivel"}
-        return vento_plano
+
+def montar(db, piloto, dados, plano=None):
+    entrada, erro = _preparar_entrada(db, dados)
+    if erro is not None:
+        return None, erro
+    (
+        origem_icao,
+        destino_icao,
+        aeronave,
+        origem,
+        destino,
+        hora,
+        particulares,
+    ) = entrada
+    vento_plano = tempo_mod.vento_area(origem, destino)
+    vento_de, limite_vento_kt = _vento_para_rota(vento_plano)
+    cache_sol = {}
 
     def sol_de(chegada, instante):
         chave = (chegada.icao, instante.date().isoformat())
@@ -209,6 +274,23 @@ def montar(db, piloto, dados, plano=None):
         vento_de=vento_de,
         sol_de=sol_de,
         hora_partida=hora,
+        limite_vento_kt=limite_vento_kt,
+    )
+    aerodromos_rota = []
+    vistos = set()
+    for trecho in rota["trechos"]:
+        for icao in (trecho["origem"], trecho["destino"]):
+            if icao in vistos:
+                continue
+            vistos.add(icao)
+            aerodromo = db.get(Aerodromo, icao)
+            if aerodromo is not None:
+                aerodromos_rota.append(aerodromo)
+    fontes = tempo_mod.buscar(
+        origem,
+        destino,
+        aerodromos=aerodromos_rota,
+        vento=vento_plano,
     )
     if rota["rota_estado"] != "aceitavel":
         resultado = {
@@ -232,6 +314,16 @@ def montar(db, piloto, dados, plano=None):
             vento_plano["efeito"] = conta["efeito_vento"]
             vento_plano["proa_graus"] = conta["proa_graus"]
             vento_plano["velocidade_solo_kt"] = conta["velocidade_solo_kt"]
+    procedencia = procedencia_aeronave(db, aeronave)
+    resultado["procedencia"] = procedencia
+    resultado["estimativa_didatica"] = any(
+        fonte and fonte["estimativa_didatica"] for fonte in procedencia.values()
+    )
+    resultado["dados_sinteticos"] = any(
+        fonte and fonte["dados_sinteticos"] for fonte in procedencia.values()
+    )
+    resultado["proxy_sintetico"] = aeronave.manual_estado == "proxy_sintetico"
+    resultado["modelo_alvo"] = aeronave.nome if resultado["proxy_sintetico"] else None
     momento = agora()
     if plano is None:
         plano = PlanoDeVoo(piloto_id=piloto.id, criado_em=momento)
@@ -258,110 +350,3 @@ def montar(db, piloto, dados, plano=None):
     db.commit()
     db.refresh(plano)
     return plano, None
-
-
-def do_piloto(db, piloto_id, plano_id):
-    return (
-        db.query(PlanoDeVoo)
-        .filter(PlanoDeVoo.id == plano_id, PlanoDeVoo.piloto_id == piloto_id)
-        .one_or_none()
-    )
-
-
-def listar(db, piloto_id):
-    return (
-        db.query(PlanoDeVoo)
-        .filter(PlanoDeVoo.piloto_id == piloto_id)
-        .order_by(PlanoDeVoo.atualizado_em.desc())
-        .all()
-    )
-
-
-def marcar_item(db, piloto, plano_id, item_id, marcado):
-    plano = do_piloto(db, piloto.id, plano_id)
-    if plano is None:
-        return None
-    item = next((i for i in plano.itens if i.id == item_id), None)
-    if item is None:
-        return None
-    item.marcado = bool(marcado)
-    db.commit()
-    return item
-
-
-def apagar(db, piloto, plano_id, confirmar):
-    plano = do_piloto(db, piloto.id, plano_id)
-    if plano is None:
-        return False, "ausente"
-    if not confirmar:
-        return False, "sem_confirmacao"
-    db.delete(plano)
-    db.commit()
-    return True, None
-
-
-def para_json(plano):
-    return {
-        "id": plano.id,
-        "estado": plano.estado,
-        "origem": plano.origem_icao,
-        "destino": plano.destino_icao,
-        "hora_partida": plano.hora_partida.isoformat(),
-        "motivo": plano.motivo,
-        "rota": {
-            "estado": plano.rota_estado,
-            "criterio": "menor tempo de voo" if plano.rota_estado == "aceitavel" else None,
-            "hipotese_reabastecimento": plano.hipotese_reabastecimento,
-            "trechos": [
-                {
-                    "ordem": trecho.ordem,
-                    "origem": trecho.origem_icao,
-                    "destino": trecho.destino_icao,
-                    "distancia": {
-                        "valor": trecho.distancia_valor,
-                        "unidade": trecho.distancia_unidade,
-                        "fonte": trecho.distancia_fonte,
-                    },
-                    "proa": {
-                        "valor": trecho.proa_valor,
-                        "unidade": trecho.proa_unidade,
-                        "fonte": trecho.proa_fonte,
-                    },
-                    "tempo": {
-                        "valor": trecho.tempo_valor,
-                        "unidade": trecho.tempo_unidade,
-                        "fonte": trecho.tempo_fonte,
-                    },
-                    "combustivel": {
-                        "valor": trecho.combustivel_valor,
-                        "unidade": trecho.combustivel_unidade,
-                        "fonte": trecho.combustivel_fonte,
-                    },
-                    "vento_estado": trecho.vento_estado,
-                    "por_do_sol_estado": trecho.por_do_sol_estado,
-                    "velocidade_solo_kt": trecho.velocidade_solo_kt,
-                }
-                for trecho in plano.trechos
-            ],
-        },
-        "aeronave_id": plano.aeronave_id,
-        "dados_particulares": plano.dados_particulares,
-        "resultado": plano.resultado,
-        "meteorologia": plano.meteorologia,
-        "vento": plano.vento,
-        "carta": plano.carta,
-        "radar": plano.radar,
-        "aviso": plano.aviso,
-        "checklist": [
-            {
-                "id": item.id,
-                "ordem": item.ordem,
-                "texto": item.texto,
-                "fonte": item.fonte,
-                "marcado": item.marcado,
-            }
-            for item in plano.itens
-        ],
-        "criado_em": plano.criado_em.isoformat(),
-        "atualizado_em": plano.atualizado_em.isoformat(),
-    }

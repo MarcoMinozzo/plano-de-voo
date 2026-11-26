@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}Perfil{% endblock %}
+{% block aviso_impressao %}{% endblock %}
+{% block corpo %}
+<section class="vidro mx-auto my-4 w-[calc(100%-24px)] max-w-[40rem] rounded-3xl bg-aviation-glass p-6 text-aviation-white">
+    <h1>Perfil</h1>
+    <p>O nome de exibição aparece na capa do relatório PDF. Ele não altera sua identificação de acesso.</p>
+    {% with mensagens_sucesso = get_flashed_messages(category_filter=["sucesso"]) %}
+        {% for mensagem_sucesso in mensagens_sucesso %}
+            <p class="text-aviation-yellow" role="status">{{ mensagem_sucesso }}</p>
+        {% endfor %}
+    {% endwith %}
+    {% if mensagem %}<p class="erro text-aviation-yellow" role="alert">{{ mensagem }}</p>{% endif %}
+    <form class="grid gap-[0.6rem]" method="post" action="{{ url_for('perfil') }}">
+        <label class="grid gap-[0.2rem]">Nome de exibição
+            <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="nome_exibicao" value="{{ piloto.nome_exibicao }}" maxlength="160" required>
+        </label>
+        <button class="min-h-11 cursor-pointer rounded-2xl border-0 bg-aviation-yellow font-[inherit] text-aviation-navy" type="submit">Salvar nome</button>
+    </form>
+</section>
+{% endblock %}
