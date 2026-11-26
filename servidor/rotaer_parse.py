@@ -65,6 +65,56 @@ def _tipo_lugar(valor):
     return None
 
 
+_EMAIL_ROTAER = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w.-]+\.[A-Z]{2,}(?!\w)", re.I)
+_TELEFONE_ROTAER = re.compile(
+    r"(?<!\d)(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?\d{4,5}\s*[-–]?\s*\d{4}(?!\d)"
+)
+_TRECHO_TELEFONE_ROTAER = re.compile(
+    r"\b(?:TEL(?:EFONE)?\.?|WHATSAPP)\s*:?\s*(.{0,240}?)(?=\b(?:E-?MAIL|EMAIL|FAX|FREQ)\b|[.;\n]|$)",
+    re.I,
+)
+
+
+def _contatos_rotaer_texto(texto):
+    emails = list(dict.fromkeys(match.group(0).rstrip(".,;:") for match in _EMAIL_ROTAER.finditer(texto)))
+    telefones = []
+    for trecho in _TRECHO_TELEFONE_ROTAER.findall(texto):
+        for match in _TELEFONE_ROTAER.finditer(trecho):
+            digitos = re.sub(r"\D", "", match.group(0))
+            if digitos.startswith("55") and len(digitos) in {12, 13}:
+                digitos = digitos[2:]
+            if len(digitos) == 11:
+                telefone = f"({digitos[:2]}) {digitos[2:7]}-{digitos[7:]}"
+            elif len(digitos) == 10:
+                telefone = f"({digitos[:2]}) {digitos[2:6]}-{digitos[6:]}"
+            else:
+                telefone = " ".join(match.group(0).split())
+            if telefone not in telefones:
+                telefones.append(telefone)
+    return {
+        "telefone": ", ".join(telefones) or None,
+        "email": ", ".join(emails) or None,
+        "contatos_rotaer_verificados": True,
+    }
+
+
+def _contatos_rotaer_elemento(elemento):
+    telefone = []
+    emails = []
+    for filho in elemento.iter():
+        tag = _tag(filho)
+        texto = (filho.text or "").strip()
+        if not texto:
+            continue
+        if tag in {"tel", "telefone", "phone", "telephone"}:
+            telefone.append(texto)
+        elif tag in {"email", "e-mail", "mail"}:
+            emails.append(texto)
+    contatos = _contatos_rotaer_texto("TEL: " + ", ".join(telefone))
+    contatos["email"] = ", ".join(emails) or contatos["email"]
+    return contatos
+
+
 def _interpretar_pagina_rotaer(corpo):
     if isinstance(corpo, bytes):
         corpo = corpo.decode("utf-8", errors="replace")
@@ -109,6 +159,7 @@ def _interpretar_pagina_rotaer(corpo):
                 "tipo": tipo,
                 "rotaer_versao_id": versao_id,
                 "rotaer_atualizado_em": atualizado_em,
+                **_contatos_rotaer_elemento(item),
             }
         )
     return total, len(itens), registros
@@ -155,6 +206,7 @@ def interpretar_rotaer(corpo):
                 "lat": lat,
                 "lon": lon,
                 "elev_m": elev,
+                **_contatos_rotaer_elemento(elemento),
             }
         )
     return codigo, registros
@@ -166,6 +218,7 @@ class _ParserHtmlDetalheRotaer(HTMLParser):
         self.titulos = {}
         self.linhas = []
         self.comentarios = []
+        self.texto = []
         self._linha = None
         self._celula = None
         self._titulo = None
@@ -184,6 +237,7 @@ class _ParserHtmlDetalheRotaer(HTMLParser):
             self._texto_titulo = []
 
     def handle_data(self, data):
+        self.texto.append(data)
         if self._celula is not None:
             self._celula.append(data)
         if self._titulo is not None:
@@ -255,4 +309,5 @@ def _detalhe_rotaer_html(corpo, item):
         "lat": lat,
         "lon": lon,
         "elev_m": elevacao,
+        **_contatos_rotaer_texto(" ".join(parser.texto)),
     }

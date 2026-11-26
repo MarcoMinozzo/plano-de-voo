@@ -1,6 +1,7 @@
 import json
 import re
 import subprocess
+from datetime import date
 
 import pytest
 from flask import template_rendered
@@ -570,9 +571,62 @@ def test_tabela_vazia_nao_aparece_e_mapa_avisa_a_carta(cliente, monkeypatch):
     assert "<th>Grandeza</th>" not in html
     assert 'role="tablist"' in html
     assert html.index("não substitui a carta de voo visual") < html.index('id="mapa"')
-    assert "Carta de voo visual indisponível" in html
+    assert "Carta WAC indisponível" in html
     assert "Chave REDEMET não configurada." in html
-    assert "Como ler este plano" in html
+    assert "Como ler este plano" not in html
+    assert "Imprimir PDF" not in html
+
+
+def test_detalhe_plano_apresenta_rota_completa_contatos_e_alerta_destacado(cliente):
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+    adicionar_trecho_de_retorno(plano_id)
+
+    db = Sessao()
+    try:
+        origem = db.get(Aerodromo, "SBJD")
+        origem.nome = "Aeroporto de Jundiaí"
+        origem.tipo = "aerodromo"
+        origem.rotaer_versao_id = "origem-1"
+        origem.rotaer_atualizado_em = date(2026, 11, 26)
+        origem.telefone = "(11) 99999-1234"
+        origem.email = "operacoes@jundiai.example"
+        destino = db.get(Aerodromo, "SBAU")
+        destino.nome = "Aeroporto de Araçatuba"
+        destino.tipo = "aerodromo"
+        destino.rotaer_versao_id = "destino-1"
+        destino.rotaer_atualizado_em = date(2026, 11, 26)
+        destino.telefone = None
+        destino.email = None
+        plano = db.get(PlanoDeVoo, plano_id)
+        plano.resultado = {
+            **plano.resultado,
+            "alertas": ["Excesso de peso: limite de planejamento excedido."],
+        }
+        db.commit()
+    finally:
+        Sessao.remove()
+
+    html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
+    inicio_rota = html.index('<ol class="m-0 flex')
+    trecho_rota = html[inicio_rota : html.index("</ol>", inicio_rota)]
+
+    assert "SBJD" not in trecho_rota and "SBAU" not in trecho_rota
+    assert "Aeroporto de Jundiaí" in trecho_rota
+    assert "Aeroporto de Araçatuba" in trecho_rota
+    assert trecho_rota.index("Aeroporto de Jundiaí") < trecho_rota.index(
+        "Aeroporto de Araçatuba"
+    )
+    assert "operacoes@jundiai.example" in html
+    assert "(11) 99999-1234" in html
+    assert "Indisponível" in html
+    assert "Excesso de peso: limite de planejamento excedido." in html
+    assert 'role="alert"' in html
+    assert "text-[#B42318]" in html
+    assert html.index("IMPRIMIR VOO") < html.index('role="tablist"')
+    assert "Como ler este plano" not in html
+    assert "Imprimir PDF" not in html
 
 
 def test_plano_com_varios_trechos_apresenta_fichas_e_remove_checklist_da_tela(cliente):
@@ -605,6 +659,10 @@ def test_mapa_recebe_somente_os_pontos_de_cada_trecho_e_exibe_wac_indisponivel(c
             aero.icao: [aero.lat, aero.lon]
             for aero in db.query(Aerodromo).filter(Aerodromo.icao.in_(("SBJD", "SBAU"))).all()
         }
+        nomes = {
+            aero.icao: aero.nome
+            for aero in db.query(Aerodromo).filter(Aerodromo.icao.in_(("SBJD", "SBAU"))).all()
+        }
     finally:
         Sessao.remove()
 
@@ -621,12 +679,16 @@ def test_mapa_recebe_somente_os_pontos_de_cada_trecho_e_exibe_wac_indisponivel(c
             "ordem": 1,
             "origem": "SBJD",
             "destino": "SBAU",
+            "origem_nome": nomes["SBJD"],
+            "destino_nome": nomes["SBAU"],
             "pontos": [aerodromos["SBJD"], aerodromos["SBAU"]],
         },
         {
             "ordem": 2,
             "origem": "SBAU",
             "destino": "SBJD",
+            "origem_nome": nomes["SBAU"],
+            "destino_nome": nomes["SBJD"],
             "pontos": [aerodromos["SBAU"], aerodromos["SBJD"]],
         },
     ]
@@ -641,26 +703,32 @@ def test_mapa_recebe_somente_os_pontos_de_cada_trecho_e_exibe_wac_indisponivel(c
             "ordem": 1,
             "origem": "SBJD",
             "destino": "SBAU",
+            "origem_nome": nomes["SBJD"],
+            "destino_nome": nomes["SBAU"],
             "pontos": [aerodromos["SBJD"], aerodromos["SBAU"]],
         },
         {
             "ordem": 2,
             "origem": "SBAU",
             "destino": "SBJD",
+            "origem_nome": nomes["SBAU"],
+            "destino_nome": nomes["SBJD"],
             "pontos": [aerodromos["SBAU"], aerodromos["SBJD"]],
         },
     ]
-    assert 'id="base-wac" type="radio" name="camada-base" value="wac" disabled' in html
-    assert "Carta de voo visual indisponível" in html
+    assert "Carta WAC indisponível" in html
     assert html.count('id="mapa"') == 1
-    assert html.count("L.map(elementoMapa)") == 1
+    assert html.count('L.map(elementoMapa, {zoomControl: false})') == 1
+    assert 'L.control.zoom({position: "bottomleft"}).addTo(mapa)' in html
     assert 'ficha-trecho-ativada' in html
     assert "linha.setLatLngs(trecho.pontos)" in html
     assert "Mapa indisponível: coordenadas do trecho não encontradas." in html
     assert "mapa.fitBounds(L.latLngBounds(trecho.pontos)" in html
-    assert 'ruasInput.addEventListener("change"' in html
-    assert 'radarToggle.addEventListener("change"' in html
-    assert 'id="radar-toggle" type="checkbox" checked' not in html
+    assert 'ruasButton.addEventListener("click"' in html
+    assert 'radarToggle.addEventListener("click"' in html
+    assert 'id="radar-toggle" type="button" aria-pressed="false"' in html
+    assert 'mapa.createPane("radarPane")' in html
+    assert 'pane: "radarPane"' in html
 
 
 def test_mapa_disponibiliza_openaip_com_atribuicao_e_estado_explicito(cliente, monkeypatch):
@@ -674,7 +742,7 @@ def test_mapa_disponibiliza_openaip_com_atribuicao_e_estado_explicito(cliente, m
     assert "Mapa de ruas" in html
     assert "OpenAIP — dados aeronáuticos comunitários; não é carta WAC nem fonte oficial" in html
     assert 'href="https://www.openaip.net"' in html
-    assert "Radar de chuva" in html
+    assert "REDEMET — oficial" in html
     assert "fake-private-key" not in html
 
 
@@ -757,13 +825,15 @@ def test_fichas_mostram_metar_e_taf_dos_aerodromos_do_trecho(cliente, monkeypatc
     assert primeira.index("METAR da saída") < primeira.index("METAR da chegada")
     assert primeira.index("METAR da chegada") < primeira.index("TAF da saída")
     assert primeira.index("TAF da chegada") < primeira.index('id="mapa"')
-    assert primeira.index('id="mapa"') < primeira.index("sequence-line")
+    assert "sequence-line" not in primeira
     assert "METAR SBAU 011200Z VRB05KT -RA" in segunda
     assert "METAR SBJD 011200Z 18010KT 6SM" in segunda
     assert "TAF SBJD 011100Z 18008KT" in segunda
 
 
-def test_mapa_mantem_openaip_indisponivel_sem_chave(cliente, monkeypatch):
+def test_controles_do_mapa_sao_compactos_e_nao_exibem_estados_redundantes(
+    cliente, monkeypatch
+):
     monkeypatch.delenv("OPENAIP_API_KEY", raising=False)
     monkeypatch.delenv("REDEMET_API_KEY", raising=False)
     cadastrar(cliente)
@@ -772,11 +842,17 @@ def test_mapa_mantem_openaip_indisponivel_sem_chave(cliente, monkeypatch):
 
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
 
-    assert 'id="base-ruas" type="radio" name="camada-base" value="ruas" checked' in html
-    assert 'id="base-openaip" type="radio" name="camada-base" value="openaip" disabled' in html
-    assert "OpenAIP indisponível: chave de serviço não configurada." in html
+    assert 'id="toggle-ruas" type="button" aria-pressed="true"' in html
+    assert 'id="toggle-google" type="button" disabled' in html
+    assert 'id="radar-toggle" type="button" aria-pressed="false"' in html
+    assert 'id="rainviewer-toggle" type="button" aria-pressed="false"' in html
+    assert "OpenAIP indisponível: chave de serviço não configurada." not in html
+    assert "OpenAIP disponível" not in html
+    assert "Radar de chuva desativado." not in html
+    assert "Radar de chuva desativado" not in html
+    assert "Carta WAC indisponível" in html
     assert "Chave REDEMET não configurada." in html
-    assert 'id="radar-toggle" type="checkbox" checked' not in html
+    assert "Mapa de ruas" in html
 
 
 def test_pagina_plano_omite_tabela_de_procedencia(cliente):
@@ -822,8 +898,11 @@ def test_rainviewer_nao_e_consultado_ao_abrir_o_plano(cliente, monkeypatch):
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
 
     assert chamadas == []
-    assert re.search(r'<input\b(?=[^>]*id="rainviewer-toggle")(?=[^>]*type="checkbox")[^>]*>', html)
-    assert "RainViewer — radar não oficial" in html
+    assert re.search(
+        r'<button\b(?=[^>]*id="rainviewer-toggle")(?=[^>]*type="button")[^>]*>',
+        html,
+    )
+    assert "RainViewer — não oficial" in html
     assert 'href="https://www.rainviewer.com/"' in html
 
 

@@ -1,7 +1,8 @@
 {% extends "base.html" %}
 {% block titulo %}{{ plano.origem_icao }} → {{ plano.destino_icao }}{% endblock %}
 {% block corpo %}
-<section class="vidro mx-auto my-4 w-[calc(100%-24px)] max-w-[40rem] rounded-3xl bg-aviation-glass p-6 text-aviation-white" id="resumo">
+<div class="vidro mx-auto my-4 w-[calc(100%-24px)] rounded-3xl bg-aviation-glass p-4 text-aviation-white md:w-[80%] md:p-6" id="pagina-plano">
+<header id="resumo">
     <div class="flex flex-wrap items-center justify-between gap-2">
         <h1 class="m-0">{{ plano.origem_icao }} → {{ plano.destino_icao }}</h1>
         <a class="inline-flex min-h-11 items-center rounded-2xl bg-aviation-yellow px-4 font-[inherit] text-aviation-navy no-underline" href="{{ url_for('pdf', plano_id=plano.id) }}">IMPRIMIR VOO</a>
@@ -12,17 +13,58 @@
         and not plano.resultado.get("dados_sinteticos") %}
     <p>Há dados secundários identificados como estimativas didáticas. Não são adequados para planejamento de voo real e não autorizam o voo.</p>
     {% endif %}
+    <p>Uso exclusivamente didático. Este resultado não serve para planejamento de voo real e não autoriza o voo.</p>
     {% if plano.motivo %}<p>{{ plano.motivo }}</p>{% endif %}
-    {% if plano.resultado.alertas %}
-    <ul>{% for alerta in plano.resultado.alertas %}<li>{{ alerta }}</li>{% endfor %}</ul>
+</header>
+
+<section class="my-4 rounded-2xl bg-aviation-paper p-4 text-aviation-navy md:p-6" aria-label="Rota completa">
+    <h2 class="mt-0">Rota completa</h2>
+    {% if plano.trechos %}
+    <ol class="m-0 flex flex-wrap items-center gap-x-3 gap-y-2 p-0" aria-label="Rota completa">
+        {% set aeroporto_origem = aerodromos_rota.get(plano.origem_icao) %}
+        <li class="list-none font-semibold">{{ aeroporto_origem.nome if aeroporto_origem else "Nome indisponível" }}</li>
+        {% for trecho in plano.trechos %}
+        {% set aeroporto_destino = aerodromos_rota.get(trecho.destino_icao) %}
+        <li class="list-none" aria-hidden="true">→</li>
+        <li class="list-none font-semibold">{{ aeroporto_destino.nome if aeroporto_destino else "Nome indisponível" }}</li>
+        {% endfor %}
+    </ol>
+    {% else %}
+    <p class="mb-0">Rota indisponível.</p>
     {% endif %}
-    {% for trecho in plano.trechos %}
-    <p>Trecho {{ trecho.ordem }}: {{ trecho.origem_icao }} — {{ trecho.destino_icao }}. {{ trecho.distancia_valor }} {{ trecho.distancia_unidade }}.</p>
-    {% endfor %}
+</section>
+
+{% if plano.resultado.alertas %}
+<section class="my-4 rounded-2xl border border-solid border-[#B42318] bg-[#FEF3F2] p-4 text-[#B42318]" role="alert" aria-label="Alertas do plano">
+    <h2 class="mt-0">Alertas</h2>
+    <ul class="mb-0">{% for alerta in plano.resultado.alertas %}<li>{{ alerta }}</li>{% endfor %}</ul>
+</section>
+{% endif %}
+
+<section class="my-4 rounded-2xl bg-aviation-paper p-4 text-aviation-navy md:p-6" aria-label="Dados dos aeródromos de origem e destino">
+    <h2 class="mt-0">Aeródromos de origem e destino</h2>
+    <div class="grid gap-4 md:grid-cols-2">
+        {% for icao, papel in ((plano.origem_icao, "Origem"), (plano.destino_icao, "Destino")) %}
+        {% set aerodromo = aerodromos_rota.get(icao) %}
+        <section class="rounded-2xl border border-solid border-[#8AA0B8] p-4" aria-label="{{ papel }} {{ icao }}">
+            <h3 class="mt-0">{{ aerodromo.nome if aerodromo else "Nome indisponível" }} ({{ icao }})</h3>
+            <dl class="grid gap-2 sm:grid-cols-2">
+                <div><dt>Tipo</dt><dd>{{ aerodromo.tipo if aerodromo else "Indisponível" }}</dd></div>
+                <div><dt>Coordenadas (graus)</dt><dd>{% if aerodromo %}{{ "%.6f"|format(aerodromo.lat) }}, {{ "%.6f"|format(aerodromo.lon) }}{% else %}Indisponível{% endif %}</dd></div>
+                <div><dt>Elevação (m)</dt><dd>{{ aerodromo.elev_m if aerodromo else "Indisponível" }}</dd></div>
+                <div><dt>Emenda ROTAER</dt><dd>{% if aerodromo and aerodromo.rotaer_versao_id %}{{ aerodromo.rotaer_versao_id }}{% else %}Indisponível{% endif %}</dd></div>
+                <div><dt>Data ROTAER</dt><dd>{% if aerodromo and aerodromo.rotaer_atualizado_em %}{{ aerodromo.rotaer_atualizado_em.isoformat() }}{% else %}Indisponível{% endif %}</dd></div>
+                <div><dt>Telefone publicado</dt><dd id="telefone-{{ papel|lower }}">{{ aerodromo.telefone if aerodromo and aerodromo.telefone else "Indisponível" }}</dd></div>
+                <div><dt>E-mail publicado</dt><dd id="email-{{ papel|lower }}">{{ aerodromo.email if aerodromo and aerodromo.email else "Indisponível" }}</dd></div>
+                <div class="sm:col-span-2"><dt>Fonte</dt><dd>{{ aerodromo.fonte if aerodromo else "ROTAER AISWEB — indisponível" }}</dd></div>
+            </dl>
+        </section>
+        {% endfor %}
+    </div>
 </section>
 
 {% if plano.resultado.linhas %}
-<section class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy">
+<section class="leitura my-4 rounded-2xl bg-aviation-paper p-4 text-aviation-navy md:p-6">
 <h2>Dados do plano</h2>
 <div class="rolagem larga">
 <table class="w-full border-collapse [&_td]:border-b [&_td]:border-solid [&_td]:border-[#8AA0B8] [&_td]:px-[0.6rem] [&_td]:py-[0.3rem] [&_td]:text-left [&_th]:border-b [&_th]:border-solid [&_th]:border-[#8AA0B8] [&_th]:px-[0.6rem] [&_th]:py-[0.3rem] [&_th]:text-left [&_caption]:caption-bottom [&_caption]:pt-[0.4rem] [&_caption]:text-left">
@@ -43,17 +85,20 @@
 {% endif %}
 
 {% if plano.trechos %}
-<nav class="abas mx-auto my-4 flex w-[calc(100%-24px)] max-w-[48rem] gap-2 overflow-x-auto" role="tablist" aria-label="Trechos do plano" data-fichas>
+<nav class="abas my-4 flex w-full gap-2 overflow-x-auto" role="tablist" aria-label="Trechos do plano" data-fichas>
     {% for trecho in plano.trechos %}
     <a class="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-solid border-[#8AA0B8] px-3 text-aviation-navy" href="#ficha-trecho-{{ trecho.ordem }}" id="aba-trecho-{{ trecho.ordem }}" role="tab" aria-controls="ficha-trecho-{{ trecho.ordem }}" aria-selected="{{ 'true' if loop.first else 'false' }}" tabindex="0" data-ficha-tab>
         {{ trecho.origem_icao }} — {{ trecho.destino_icao }}
     </a>
     {% endfor %}
 </nav>
-<section class="mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem]" aria-label="Fichas dos trechos">
+<section class="my-4 w-full" aria-label="Fichas dos trechos">
     {% for trecho in plano.trechos %}
-    <article class="leitura rounded-3xl bg-aviation-paper p-6 text-aviation-navy" id="ficha-trecho-{{ trecho.ordem }}" role="tabpanel" aria-labelledby="aba-trecho-{{ trecho.ordem }}" tabindex="0" data-ficha-panel data-trecho-ordem="{{ trecho.ordem }}">
+    <article class="leitura rounded-2xl bg-aviation-paper p-4 text-aviation-navy md:p-6" id="ficha-trecho-{{ trecho.ordem }}" role="tabpanel" aria-labelledby="aba-trecho-{{ trecho.ordem }}" tabindex="0" data-ficha-panel data-trecho-ordem="{{ trecho.ordem }}">
         <h2>Trecho {{ trecho.ordem }} — {{ trecho.origem_icao }} → {{ trecho.destino_icao }}</h2>
+        {% set aerodromo_saida = aerodromos_rota.get(trecho.origem_icao) %}
+        {% set aerodromo_chegada = aerodromos_rota.get(trecho.destino_icao) %}
+        <p><strong>Origem:</strong> {{ aerodromo_saida.nome if aerodromo_saida else "Nome indisponível" }} ({{ trecho.origem_icao }}). <strong>Destino:</strong> {{ aerodromo_chegada.nome if aerodromo_chegada else "Nome indisponível" }} ({{ trecho.destino_icao }}).</p>
         <dl class="grid gap-3 sm:grid-cols-2">
             <div><dt>Distância</dt><dd>{{ trecho.distancia_valor }} {{ trecho.distancia_unidade }} ({{ trecho.distancia_fonte }})</dd></div>
             <div><dt>Proa</dt><dd>{{ trecho.proa_valor }} {{ trecho.proa_unidade }} ({{ trecho.proa_fonte }})</dd></div>
@@ -97,44 +142,34 @@
         </div>
         <div class="my-4" data-mapa-slot>
             {% if loop.first %}
-            <div class="leitura rounded-2xl border border-solid border-[#8AA0B8] p-4" id="mapa-widget">
-                <p class="legenda">O mapa de ruas não substitui a carta de voo visual oficial; OpenAIP é dado aeronáutico comunitário, não uma WAC.</p>
-                <fieldset class="mb-[0.6rem] grid gap-[0.4rem] border border-solid border-[#8AA0B8] p-[0.6rem]" aria-label="Camada do mapa">
-                    <legend>Camada do mapa</legend>
-                    <label class="flex min-h-11 items-center gap-[0.4rem]">
-                        <input id="base-ruas" type="radio" name="camada-base" value="ruas" checked>
-                        Mapa de ruas
-                    </label>
-                    <label class="flex min-h-11 items-center gap-[0.4rem]">
-                        <input id="base-wac" type="radio" name="camada-base" value="wac" disabled>
-                        Carta de voo visual (WAC) — indisponível
-                    </label>
-                    <label class="flex min-h-11 items-center gap-[0.4rem]">
-                        <input id="base-openaip" type="radio" name="camada-base" value="openaip" disabled>
-                        OpenAIP — dados aeronáuticos comunitários; não é carta WAC nem fonte oficial
-                    </label>
-                    <label class="flex min-h-11 items-center gap-[0.4rem]">
-                        <input id="radar-toggle" type="checkbox" disabled>
-                        Radar de chuva
-                    </label>
-                    <label class="flex min-h-11 items-center gap-[0.4rem]">
-                        <input id="rainviewer-toggle" type="checkbox" disabled>
-                        RainViewer — radar não oficial
-                    </label>
-                    <p class="m-0" id="estado-wac" role="status">Carta de voo visual indisponível: a edição vigente, o georreferenciamento, a cobertura e a entrega reproduzível ainda não passaram pelos critérios de validação.</p>
-                    <p class="m-0" id="estado-openaip" role="status" aria-live="polite">{% if not openaip_configurada %}OpenAIP indisponível: chave de serviço não configurada.{% endif %}</p>
-                    <p class="m-0" id="estado-radar" role="status" aria-live="polite">{% if radar and radar.get("estado") == "disponivel" %}Radar disponível; inicialmente desligado.{% else %}{{ (radar or {}).get("motivo") or "Radar indisponível." }}{% endif %}</p>
-                    <p class="m-0" id="estado-rainviewer" role="status" aria-live="polite">RainViewer desligado; a fonte será consultada somente quando você ativar a camada.</p>
-                    <p class="m-0" id="rainviewer-credit" hidden>Radar suplementar não oficial. Weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener noreferrer">RainViewer</a>.</p>
-                    <p class="m-0" id="rainviewer-cobertura" hidden>A máscara de cobertura pode estar desatualizada. Área sem cobertura não significa ausência de chuva.</p>
-                    <p class="m-0" id="estado-mapa" role="status" aria-live="polite">Mapa preparado para {{ trecho.origem_icao }} — {{ trecho.destino_icao }}.</p>
-                </fieldset>
-                <div class="mt-[0.4rem] h-80" id="mapa" aria-label="Mapa do trecho ativo"></div>
+            <div class="leitura rounded-2xl border border-solid border-[#8AA0B8] p-3 md:p-4" id="mapa-widget">
+                <p class="legenda">Mapa de ruas; não substitui a carta de voo visual oficial.</p>
+                <div class="relative">
+                    <div class="absolute right-2 top-2 z-[1000] flex max-w-[calc(100%-16px)] flex-wrap justify-end gap-2" role="group" aria-label="Camadas do mapa">
+                        <button class="min-h-11 rounded-xl border border-solid border-[#8AA0B8] bg-aviation-yellow px-3 text-aviation-navy aria-pressed:bg-aviation-yellow" id="toggle-ruas" type="button" aria-pressed="true">Mapa de ruas</button>
+                        {% if openaip_configurada %}
+                        <button class="min-h-11 rounded-xl border border-solid border-[#8AA0B8] bg-aviation-paper px-3 text-aviation-navy aria-pressed:bg-aviation-yellow" id="toggle-openaip" type="button" aria-pressed="false">OpenAIP — comunitária</button>
+                        {% endif %}
+                        <button class="min-h-11 rounded-xl border border-solid border-[#8AA0B8] bg-aviation-paper px-3 text-aviation-navy disabled:cursor-not-allowed disabled:opacity-60" id="toggle-google" type="button" disabled title="Google Maps indisponível: integração e chave não configuradas">Google Maps</button>
+                        <button class="min-h-11 rounded-xl border border-solid border-[#8AA0B8] bg-aviation-paper px-3 text-aviation-navy aria-pressed:bg-aviation-yellow" id="radar-toggle" type="button" aria-pressed="false" disabled>REDEMET — oficial</button>
+                        <button class="min-h-11 rounded-xl border border-solid border-[#8AA0B8] bg-aviation-paper px-3 text-aviation-navy aria-pressed:bg-aviation-yellow disabled:cursor-not-allowed disabled:opacity-60" id="rainviewer-toggle" type="button" aria-pressed="false" disabled>RainViewer — não oficial</button>
+                    </div>
+                    <div class="h-80 w-full rounded-xl" id="mapa" aria-label="Mapa do trecho ativo"></div>
+                </div>
+                <p class="my-2 text-sm" id="estado-wac">Carta WAC indisponível — validação pendente.</p>
+                {% if openaip_configurada %}
+                <p class="my-2 text-sm" id="estado-openaip">OpenAIP — dados aeronáuticos comunitários; não é carta WAC nem fonte oficial. Licença CC BY-NC 4.0; uso não comercial. Atribuição: <a href="https://www.openaip.net" target="_blank" rel="noopener noreferrer">OpenAIP</a>.</p>
+                <p class="my-2 text-sm" id="estado-openaip-resultado" role="status" aria-live="polite"></p>
+                {% endif %}
+                <p class="my-2 text-sm" id="estado-radar" role="status" aria-live="polite">{% if radar and radar.get("estado") != "disponivel" %}{{ (radar or {}).get("motivo") or "REDEMET indisponível." }}{% endif %}</p>
+                <p class="my-2 text-sm" id="estado-rainviewer" role="status" aria-live="polite"></p>
+                <p class="my-2 text-sm" id="rainviewer-credit" hidden>Dados meteorológicos por <a href="https://www.rainviewer.com/" target="_blank" rel="noopener noreferrer">RainViewer</a> — fonte suplementar não oficial.</p>
+                <p class="my-2 text-sm" id="rainviewer-cobertura" hidden>A cobertura pode estar desatualizada; área sem cobertura não significa ausência de chuva.</p>
+                <p class="sr-only" id="estado-mapa" role="status" aria-live="polite">Mapa preparado para {{ trecho.origem_icao }} — {{ trecho.destino_icao }}.</p>
                 <script id="pontos-por-trecho" type="application/json">{{ pontos_por_trecho | tojson }}</script>
             </div>
             {% endif %}
         </div>
-        <p class="sequence-line">{{ trecho.origem_icao }} → {{ trecho.destino_icao }}. {{ trecho.distancia_valor }} {{ trecho.distancia_unidade }}; proa {{ trecho.proa_valor }} {{ trecho.proa_unidade }}; tempo {{ trecho.tempo_valor }} {{ trecho.tempo_unidade }}.</p>
     </article>
     {% endfor %}
 </section>
@@ -188,7 +223,7 @@
 {% endif %}
 
 {% set vento_ok = plano.vento.estado == "disponivel" %}
-<section class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy" aria-labelledby="titulo-tempo">
+<section class="leitura my-4 rounded-2xl bg-aviation-paper p-4 text-aviation-navy md:p-6" aria-labelledby="titulo-tempo">
 <h2 id="titulo-tempo">Vento da rota</h2>
 {% if not vento_ok %}
 <p>Vento de rota: indisponível.</p>
@@ -211,21 +246,23 @@
   const radar = {{ (radar or {}) | tojson }};
   const motivoRadarIndisponivel = radar.motivo || (
     radar.estado === "disponivel"
-      ? "Radar indisponível: URL ou limites geográficos inválidos."
-      : "Radar indisponível."
+      ? "REDEMET indisponível: URL ou limites geográficos inválidos."
+      : "REDEMET indisponível."
   );
   const openaipConfigurada = {{ openaip_configurada | tojson }};
-  const ruasInput = document.getElementById("base-ruas");
-  const openaipInput = document.getElementById("base-openaip");
+  const openaipButton = document.getElementById("toggle-openaip");
   const radarToggle = document.getElementById("radar-toggle");
+  const ruasButton = document.getElementById("toggle-ruas");
   const rainviewerToggle = document.getElementById("rainviewer-toggle");
-  const estadoOpenAIP = document.getElementById("estado-openaip");
   const estadoRadar = document.getElementById("estado-radar");
+  const estadoOpenAIP = document.getElementById("estado-openaip-resultado");
   const estadoRainviewer = document.getElementById("estado-rainviewer");
   const creditoRainviewer = document.getElementById("rainviewer-credit");
   const coberturaRainviewer = document.getElementById("rainviewer-cobertura");
+  {% if openaip_configurada %}
   const openaipUrl = {{ url_for("tile_openaip", plano_id=plano.id, z=2, x=0, y=0) | tojson }};
   const openaipTemplate = openaipUrl.replace(/\/2\/0\/0\.png$/, "/{z}/{x}/{y}.png");
+  {% endif %}
   const rainviewerManifestUrl = {{ url_for("camada_rainviewer", plano_id=plano.id) | tojson }};
   let mapa = null;
   let ruas = null;
@@ -234,7 +271,7 @@
   let marcadores = [];
   let overlayRadar = null;
   let radarRainviewer = null;
-  let coberturaRainviewerLayer = null;
+  let radarRainviewerFalhou = false;
   let openaipFalhou = false;
   let baseOpenAIPAtiva = false;
 
@@ -243,95 +280,122 @@
   }
 
   function criarMapa(pontoInicial) {
-    mapa = L.map(elementoMapa).setView(pontoInicial, 7);
+    mapa = L.map(elementoMapa, {zoomControl: false}).setView(pontoInicial, 7);
+    L.control.zoom({position: "bottomleft"}).addTo(mapa);
+    mapa.createPane("radarPane");
+    mapa.getPane("radarPane").style.zIndex = "350";
+    mapa.getPane("radarPane").style.pointerEvents = "none";
     ruas = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(mapa);
-    openaip = L.tileLayer(openaipTemplate, {
-      attribution: '&copy; <a href="https://www.openaip.net">OpenAIP</a>',
-      tms: true,
-      minZoom: 2,
-      maxNativeZoom: 18,
-      maxZoom: 18
-    });
-    openaipInput.disabled = !openaipConfigurada;
-    if (openaipConfigurada && estadoOpenAIP) estadoOpenAIP.textContent = "OpenAIP disponível para seleção.";
-    openaip.on("tileload", function () {
-      if (!openaipFalhou && estadoOpenAIP) estadoOpenAIP.textContent = "OpenAIP carregada.";
-    });
-    openaip.on("tileerror", function () {
-      if (openaipFalhou) return;
-      openaipFalhou = true;
-      if (mapa.hasLayer(openaip)) mapa.removeLayer(openaip);
-      ruas.addTo(mapa);
+    if (openaipConfigurada && openaipButton) {
+      openaip = L.tileLayer(openaipTemplate, {
+        attribution: '&copy; <a href="https://www.openaip.net">OpenAIP</a>',
+        tms: true,
+        minZoom: 2,
+        maxNativeZoom: 18,
+        maxZoom: 18
+      });
+      openaip.on("tileload", function () {
+        if (!openaipFalhou && estadoOpenAIP) {
+          estadoOpenAIP.textContent = "OpenAIP carregada; fonte comunitária não oficial.";
+        }
+      });
+      openaip.on("tileerror", function () {
+        if (openaipFalhou) return;
+        openaipFalhou = true;
+        if (mapa.hasLayer(openaip)) mapa.removeLayer(openaip);
+        ruas.addTo(mapa);
+        baseOpenAIPAtiva = false;
+        ruasButton.setAttribute("aria-pressed", "true");
+        openaipButton.setAttribute("aria-pressed", "false");
+        openaipButton.disabled = true;
+        if (estadoOpenAIP) {
+          estadoOpenAIP.textContent = "OpenAIP indisponível; mapa de ruas restaurado.";
+        }
+      });
+      openaipButton.addEventListener("click", function () {
+        if (openaipButton.disabled) return;
+        if (mapa.getZoom() < 2) {
+          if (estadoOpenAIP) {
+            estadoOpenAIP.textContent = "Aproxime o mapa até o zoom 2 para selecionar OpenAIP.";
+          }
+          return;
+        }
+        if (mapa.hasLayer(ruas)) mapa.removeLayer(ruas);
+        openaip.addTo(mapa);
+        baseOpenAIPAtiva = true;
+        ruasButton.setAttribute("aria-pressed", "false");
+        openaipButton.setAttribute("aria-pressed", "true");
+        if (estadoOpenAIP) estadoOpenAIP.textContent = "Carregando OpenAIP.";
+      });
+    }
+    ruasButton.addEventListener("click", function () {
+      if (baseOpenAIPAtiva && mapa.hasLayer(openaip)) mapa.removeLayer(openaip);
       baseOpenAIPAtiva = false;
-      ruasInput.checked = true;
-      openaipInput.checked = false;
-      openaipInput.disabled = true;
-      if (estadoOpenAIP) estadoOpenAIP.textContent = "OpenAIP indisponível; mapa de ruas restaurado. Verifique o acesso ao serviço.";
-    });
-    ruasInput.addEventListener("change", function () {
-      if (!ruasInput.checked) return;
-      if (mapa.hasLayer(openaip)) mapa.removeLayer(openaip);
-      ruas.addTo(mapa);
-      baseOpenAIPAtiva = false;
-    });
-    openaipInput.addEventListener("change", function () {
-      if (!openaipInput.checked || openaipInput.disabled) return;
-      if (mapa.getZoom() < 2) {
-        openaipInput.checked = false;
-        ruasInput.checked = true;
-        if (estadoOpenAIP) estadoOpenAIP.textContent = "Aproxime o mapa até o zoom 2 para selecionar OpenAIP.";
-        return;
-      }
-      if (mapa.hasLayer(ruas)) mapa.removeLayer(ruas);
-      openaip.addTo(mapa);
-      baseOpenAIPAtiva = true;
-      if (estadoOpenAIP) estadoOpenAIP.textContent = "Carregando OpenAIP.";
+      if (!mapa.hasLayer(ruas)) ruas.addTo(mapa);
+      ruasButton.setAttribute("aria-pressed", "true");
+      if (openaipButton) openaipButton.setAttribute("aria-pressed", "false");
+      if (estadoOpenAIP) estadoOpenAIP.textContent = "";
     });
 
-    const limites = [radar.lat_min, radar.lon_min, radar.lat_max, radar.lon_max];
-    const limitesValidos = limites.every(function (valor) {
-      return typeof valor === "number" && Number.isFinite(valor);
-    }) && radar.lat_min < radar.lat_max && radar.lon_min < radar.lon_max;
-    if (radar.estado === "disponivel" && radar.url && limitesValidos) {
+    const limitesValidos =
+      pontoValido(radar.lat_min, -90, 90) &&
+      pontoValido(radar.lat_max, -90, 90) &&
+      pontoValido(radar.lon_min, -180, 180) &&
+      pontoValido(radar.lon_max, -180, 180) &&
+      radar.lat_min < radar.lat_max &&
+      radar.lon_min < radar.lon_max;
+    if (
+      radar.estado === "disponivel" &&
+      typeof radar.url === "string" &&
+      radar.url.trim() &&
+      limitesValidos
+    ) {
       overlayRadar = L.imageOverlay(
         radar.url,
-        [[radar.lat_min, radar.lon_min], [radar.lat_max, radar.lon_max]]
+        [[radar.lat_min, radar.lon_min], [radar.lat_max, radar.lon_max]],
+        {pane: "radarPane", opacity: 0.65}
       );
+      overlayRadar.on("error", function () {
+        if (mapa.hasLayer(overlayRadar)) mapa.removeLayer(overlayRadar);
+        radarToggle.setAttribute("aria-pressed", "false");
+        radarToggle.disabled = true;
+        if (estadoRadar) estadoRadar.textContent = "REDEMET indisponível: falha ao carregar a imagem.";
+      });
       radarToggle.disabled = false;
-      if (estadoRadar) estadoRadar.textContent = "Radar disponível; inicialmente desligado.";
-      radarToggle.addEventListener("change", function () {
-        if (radarToggle.checked) {
+      if (estadoRadar) estadoRadar.textContent = "";
+      radarToggle.addEventListener("click", function () {
+        const ativa = radarToggle.getAttribute("aria-pressed") !== "true";
+        radarToggle.setAttribute("aria-pressed", String(ativa));
+        if (ativa) {
           overlayRadar.addTo(mapa);
-          if (estadoRadar) estadoRadar.textContent = "Radar de chuva ativado.";
+          if (estadoRadar) estadoRadar.textContent = "REDEMET ativo — radar oficial.";
         } else {
           mapa.removeLayer(overlayRadar);
-          if (estadoRadar) estadoRadar.textContent = "Radar de chuva desativado.";
+          if (estadoRadar) estadoRadar.textContent = "";
         }
       });
     } else {
-      radarToggle.checked = false;
       radarToggle.disabled = true;
       if (estadoRadar) estadoRadar.textContent = motivoRadarIndisponivel;
     }
 
-    rainviewerToggle.disabled = false;
-    rainviewerToggle.addEventListener("change", async function () {
-      if (!rainviewerToggle.checked) {
-        if (radarRainviewer && mapa.hasLayer(radarRainviewer)) mapa.removeLayer(radarRainviewer);
-        if (coberturaRainviewerLayer && mapa.hasLayer(coberturaRainviewerLayer)) {
-          mapa.removeLayer(coberturaRainviewerLayer);
+    rainviewerToggle.addEventListener("click", async function () {
+      if (rainviewerToggle.getAttribute("aria-pressed") === "true") {
+        if (radarRainviewer && mapa.hasLayer(radarRainviewer)) {
+          mapa.removeLayer(radarRainviewer);
         }
         radarRainviewer = null;
-        coberturaRainviewerLayer = null;
         creditoRainviewer.hidden = true;
         coberturaRainviewer.hidden = true;
-        estadoRainviewer.textContent = "RainViewer desligado.";
+        rainviewerToggle.setAttribute("aria-pressed", "false");
+        estadoRainviewer.textContent = "";
         return;
       }
 
       rainviewerToggle.disabled = true;
+      radarRainviewerFalhou = false;
       estadoRainviewer.textContent = "Consultando o frame RainViewer.";
       try {
         const resposta = await fetch(rainviewerManifestUrl, {
@@ -343,62 +407,68 @@
           !resposta.ok ||
           !manifesto ||
           typeof manifesto !== "object" ||
-          manifesto.estado !== "disponivel"
+          manifesto.estado !== "disponivel" ||
+          typeof manifesto.radar_url !== "string" ||
+          !manifesto.radar_url ||
+          typeof manifesto.cobertura_url !== "string" ||
+          !manifesto.cobertura_url ||
+          !Number.isSafeInteger(manifesto.hora_frame) ||
+          manifesto.hora_frame <= 0 ||
+          !Number.isInteger(manifesto.max_zoom) ||
+          manifesto.max_zoom < 0
         ) {
           throw new Error(
-            (manifesto && manifesto.motivo) || "Camada RainViewer indisponível."
+            (manifesto && manifesto.motivo) ||
+              "RainViewer indisponível: cobertura, tile ou horário inválido."
           );
         }
 
         const opcoesTile = {
           maxNativeZoom: manifesto.max_zoom,
-          maxZoom: 18
+          maxZoom: 18,
+          pane: "radarPane"
         };
         radarRainviewer = L.tileLayer(manifesto.radar_url, {
           ...opcoesTile,
-          opacity: 0.7,
+          opacity: 0.65,
           attribution: '&copy; <a href="https://www.rainviewer.com/">RainViewer</a>'
         });
-        coberturaRainviewerLayer = L.tileLayer(manifesto.cobertura_url, {
-          ...opcoesTile,
-          opacity: 0.4
-        });
         const falhaTileRainviewer = function () {
-          if (radarRainviewer && mapa.hasLayer(radarRainviewer)) mapa.removeLayer(radarRainviewer);
-          if (coberturaRainviewerLayer && mapa.hasLayer(coberturaRainviewerLayer)) {
-            mapa.removeLayer(coberturaRainviewerLayer);
+          if (radarRainviewerFalhou) return;
+          radarRainviewerFalhou = true;
+          if (radarRainviewer && mapa.hasLayer(radarRainviewer)) {
+            mapa.removeLayer(radarRainviewer);
           }
           radarRainviewer = null;
-          coberturaRainviewerLayer = null;
-          rainviewerToggle.checked = false;
+          rainviewerToggle.setAttribute("aria-pressed", "false");
           creditoRainviewer.hidden = true;
           coberturaRainviewer.hidden = true;
-          estadoRainviewer.textContent =
-            "RainViewer indisponível: falha no radar ou na máscara; cobertura desconhecida.";
+          estadoRainviewer.textContent = "RainViewer indisponível: falha no tile de radar.";
         };
         radarRainviewer.on("tileerror", falhaTileRainviewer);
-        coberturaRainviewerLayer.on("tileerror", falhaTileRainviewer);
         radarRainviewer.addTo(mapa);
-        coberturaRainviewerLayer.addTo(mapa);
 
-        const horaFrame = Number(manifesto.hora_frame);
-        const horario = Number.isFinite(horaFrame) && horaFrame > 0
-          ? new Date(horaFrame * 1000).toLocaleString("pt-BR")
-          : "não fornecido pela fonte";
+        const horario = new Date(manifesto.hora_frame * 1000).toLocaleString("pt-BR");
+        rainviewerToggle.setAttribute("aria-pressed", "true");
         creditoRainviewer.hidden = false;
         coberturaRainviewer.hidden = false;
         estadoRainviewer.textContent =
-          "RainViewer ativo — radar não oficial. Horário do frame: " + horario + ".";
+          "RainViewer ativo — radar suplementar não oficial. Horário do frame: " +
+          horario +
+          ".";
       } catch (erro) {
-        rainviewerToggle.checked = false;
+        rainviewerToggle.setAttribute("aria-pressed", "false");
         creditoRainviewer.hidden = true;
         coberturaRainviewer.hidden = true;
         estadoRainviewer.textContent =
-          erro instanceof Error ? erro.message : "Camada RainViewer indisponível.";
+          erro instanceof Error
+            ? erro.message
+            : "RainViewer indisponível: resposta inválida.";
       } finally {
         rainviewerToggle.disabled = false;
       }
     });
+    rainviewerToggle.disabled = false;
   }
 
   function atualizarTrecho(ordem) {
@@ -427,10 +497,14 @@
     else linha = L.polyline(trecho.pontos).addTo(mapa);
     marcadores.forEach(function (marcador) { mapa.removeLayer(marcador); });
     marcadores = [
-      L.circleMarker(trecho.pontos[0], {radius: 6}).bindTooltip(trecho.origem).addTo(mapa),
-      L.circleMarker(trecho.pontos[1], {radius: 6}).bindTooltip(trecho.destino).addTo(mapa)
+      L.circleMarker(trecho.pontos[0], {radius: 6}).bindTooltip(trecho.origem_nome || "Nome indisponível").addTo(mapa),
+      L.circleMarker(trecho.pontos[1], {radius: 6}).bindTooltip(trecho.destino_nome || "Nome indisponível").addTo(mapa)
     ];
-    estadoMapa.textContent = "Trecho " + trecho.origem + " — " + trecho.destino + " exibido.";
+    estadoMapa.textContent = "Trecho " +
+      (trecho.origem_nome || "Nome indisponível") +
+      " — " +
+      (trecho.destino_nome || "Nome indisponível") +
+      " exibido.";
     requestAnimationFrame(function () {
       mapa.invalidateSize();
       mapa.fitBounds(L.latLngBounds(trecho.pontos), {padding: [20, 20]});
@@ -438,9 +512,11 @@
         mapa.removeLayer(openaip);
         ruas.addTo(mapa);
         baseOpenAIPAtiva = false;
-        ruasInput.checked = true;
-        openaipInput.checked = false;
-        if (estadoOpenAIP) estadoOpenAIP.textContent = "Mapa de ruas restaurado: o trecho exige zoom abaixo do mínimo da OpenAIP.";
+        ruasButton.setAttribute("aria-pressed", "true");
+        openaipButton.setAttribute("aria-pressed", "false");
+        if (estadoOpenAIP) {
+          estadoOpenAIP.textContent = "Mapa de ruas restaurado: o trecho exige zoom abaixo do mínimo da OpenAIP.";
+        }
       }
     });
   }
@@ -455,11 +531,5 @@
 </script>
 {% endif %}
 
-<section class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy" aria-label="Orientação">
-<details>
-    <summary>Como ler este plano</summary>
-    <article>{{ orientacao }}</article>
-</details>
-<p><a class="text-aviation-navy" href="{{ url_for('pdf', plano_id=plano.id) }}">Imprimir PDF</a></p>
-</section>
+</div>
 {% endblock %}

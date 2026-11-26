@@ -185,6 +185,11 @@ def _gravar_emenda(db, codigo, registros):
                     elev_m=item["elev_m"],
                     rotaer_versao_id=item.get("rotaer_versao_id"),
                     rotaer_atualizado_em=item.get("rotaer_atualizado_em"),
+                    telefone=item.get("telefone"),
+                    email=item.get("email"),
+                    contatos_rotaer_verificados=item.get(
+                        "contatos_rotaer_verificados", False
+                    ),
                     emenda_id=emenda.id,
                     fonte=fonte,
                 )
@@ -197,6 +202,11 @@ def _gravar_emenda(db, codigo, registros):
             atual.elev_m = item["elev_m"]
             atual.rotaer_versao_id = item.get("rotaer_versao_id")
             atual.rotaer_atualizado_em = item.get("rotaer_atualizado_em")
+            atual.telefone = item.get("telefone")
+            atual.email = item.get("email")
+            atual.contatos_rotaer_verificados = item.get(
+                "contatos_rotaer_verificados", False
+            )
             atual.emenda_id = emenda.id
             atual.fonte = fonte
     db.commit()

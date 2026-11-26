@@ -8,6 +8,7 @@ import requests
 from servidor.modelos import Aerodromo
 from servidor.rotaer_parse import (
     _data_rotaer,
+    _contatos_rotaer_elemento,
     _detalhe_rotaer_html,
     _interpretar_pagina_rotaer,
     _numero_rotaer,
@@ -85,6 +86,7 @@ def _detalhe_rotaer(item, obter, chave, senha):
         "elev_m": _numero_rotaer(
             _texto(raiz, "altM", "elev_m", "elevacao"), "altM", icao
         ),
+        **_contatos_rotaer_elemento(raiz),
     }
 
 
@@ -153,6 +155,8 @@ def _validar_lista_rotaer(lista, total):
 
 def _valores_cache_rotaer(item, cache):
     existente = cache.get(item["icao"], {})
+    if not existente.get("contatos_rotaer_verificados"):
+        return None
     try:
         valores = {campo: float(existente[campo]) for campo in ("lat", "lon", "elev_m")}
     except (KeyError, TypeError, ValueError, OverflowError):
@@ -165,6 +169,9 @@ def _valores_cache_rotaer(item, cache):
         or not -180 <= valores["lon"] <= 180
     ):
         return None
+    valores["telefone"] = existente.get("telefone")
+    valores["email"] = existente.get("email")
+    valores["contatos_rotaer_verificados"] = True
     return valores
 
 
@@ -239,6 +246,9 @@ def _cache_rotaer(db):
             "lat": item.lat,
             "lon": item.lon,
             "elev_m": item.elev_m,
+            "telefone": item.telefone,
+            "email": item.email,
+            "contatos_rotaer_verificados": item.contatos_rotaer_verificados,
         }
         for item in db.query(Aerodromo).all()
         if item.rotaer_versao_id and item.rotaer_atualizado_em

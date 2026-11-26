@@ -184,6 +184,11 @@ class Aerodromo(Base):
     elev_m: Mapped[float] = mapped_column(Float, nullable=False)
     rotaer_versao_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     rotaer_atualizado_em: Mapped[date | None] = mapped_column(Date, nullable=True)
+    telefone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    email: Mapped[str | None] = mapped_column(Text, nullable=True)
+    contatos_rotaer_verificados: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     emenda_id: Mapped[int | None] = mapped_column(ForeignKey("emenda_rotaer.id"), nullable=True)
     fonte: Mapped[str] = mapped_column(Text, nullable=False)
 

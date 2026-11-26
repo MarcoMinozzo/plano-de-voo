@@ -167,6 +167,7 @@ def _html_detalhe_rotaer():
         <td>498 <strong>(1634)</strong></td>
       </tr>
     </table>
+    <p>RMK: Atendimento local. THRU TEL: (63) 99985- 0868, (63) 2993-0183 ou pelo e-mail gerencia.swgn@esaero.com.br</p>
     """
 
 
@@ -283,6 +284,9 @@ def test_download_rotaer_reutiliza_detalhe_quando_versao_nao_muda(monkeypatch):
             "lat": -23.5,
             "lon": -46.6,
             "elev_m": 12,
+            "telefone": None,
+            "email": None,
+            "contatos_rotaer_verificados": True,
         }
     }
 
@@ -337,6 +341,92 @@ def test_download_rotaer_faz_fallback_para_html_sem_icao_correspondente(
     assert registros[0]["lon"] == pytest.approx(-(50 + 5 / 60 + 5.06 / 3600))
     assert registros[0]["elev_m"] == 498
     assert registros[0]["rotaer_atualizado_em"] == date(2026, 7, 30)
+    assert registros[0]["telefone"] == "(63) 99985-0868, (63) 2993-0183"
+    assert registros[0]["email"] == "gerencia.swgn@esaero.com.br"
+    assert registros[0]["contatos_rotaer_verificados"] is True
+
+
+def test_carregar_rotaer_atualiza_e_limpa_contatos_da_emenda(cliente):
+    cadastrar(cliente)
+    db = _db()
+    try:
+        com_contatos = """
+        <aisweb><emenda>CONTATOS-1</emenda><rotaer>
+          <AeroCode>S0A1</AeroCode><name>Aeródromo Um</name><type>AD</type>
+          <lat>0</lat><lng>0</lng><altM>10</altM>
+          <telefone>(11) 99999-1234</telefone><email>ops@example.br</email>
+        </rotaer></aisweb>
+        """
+        assert carregar_rotaer(db, corpo=com_contatos) == "disponivel"
+        aero = db.get(Aerodromo, "S0A1")
+        assert aero.telefone == "(11) 99999-1234"
+        assert aero.email == "ops@example.br"
+        assert aero.contatos_rotaer_verificados is True
+
+        sem_contatos = com_contatos.replace(
+            "<telefone>(11) 99999-1234</telefone><email>ops@example.br</email>",
+            "",
+        ).replace("CONTATOS-1", "CONTATOS-2")
+        assert carregar_rotaer(db, corpo=sem_contatos) == "disponivel"
+        assert aero.telefone is None
+        assert aero.email is None
+        assert aero.contatos_rotaer_verificados is True
+    finally:
+        Sessao.remove()
+
+
+def test_carregar_rotaer_busca_contatos_para_cache_antigo(cliente, monkeypatch):
+    monkeypatch.setenv("AISWEB_API_KEY", "teste")
+    monkeypatch.setenv("AISWEB_API_PASS", "teste")
+    item = _item_rotaer("S9Z7", versao="v1")
+    chamadas_detalhe = []
+
+    def getter(url, params=None, timeout=None):
+        if "icaoCode" in params:
+            chamadas_detalhe.append(params["icaoCode"])
+            return SimpleNamespace(
+                text="""
+                <aisweb><AeroCode>S9Z7</AeroCode><type>AD</type>
+                  <dt>2026-11-25</dt><lat>-23.5</lat><lng>-46.6</lng>
+                  <altM>12</altM><telefone>(21) 3333-4444</telefone>
+                  <email>contato@example.br</email>
+                </aisweb>
+                """,
+                raise_for_status=lambda: None,
+            )
+        return SimpleNamespace(
+            text=_xml_lista_rotaer([item], 1),
+            raise_for_status=lambda: None,
+        )
+
+    db = _db()
+    try:
+        db.add(
+            Aerodromo(
+                icao="S9Z7",
+                nome="Local S9Z7",
+                tipo="aerodromo",
+                lat=-23.5,
+                lon=-46.6,
+                elev_m=12,
+                rotaer_versao_id="v1",
+                rotaer_atualizado_em=date(2026, 11, 25),
+                fonte="ROTAER anterior",
+                contatos_rotaer_verificados=False,
+            )
+        )
+        db.commit()
+        assert carregar_rotaer(db, getter=getter) == "disponivel"
+        aero = db.get(Aerodromo, "S9Z7")
+        assert chamadas_detalhe == ["S9Z7"]
+        assert aero.telefone == "(21) 3333-4444"
+        assert aero.email == "contato@example.br"
+        assert aero.contatos_rotaer_verificados is True
+
+        assert carregar_rotaer(db, getter=getter) == "disponivel"
+        assert chamadas_detalhe == ["S9Z7"]
+    finally:
+        Sessao.remove()
 
 
 def test_carregar_rotaer_reutiliza_cache_persistido_e_invalida_versao(cliente, monkeypatch):

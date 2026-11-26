@@ -28,7 +28,6 @@ from servidor.modelos import Aeronave, Aerodromo, Sessao, agora, configurar
 from servidor.pdf_plano import (
     gerar_pdf,
     ler_orientacao,
-    ler_orientacao_plano,
     rotulo_lido,
 )
 from servidor.tempo import campos_metar, linhas_boletim
@@ -387,6 +386,8 @@ def criar_app():
                         "ordem": trecho.ordem,
                         "origem": trecho.origem_icao,
                         "destino": trecho.destino_icao,
+                        "origem_nome": saida.nome if saida is not None else None,
+                        "destino_nome": chegada.nome if chegada is not None else None,
                         "pontos": [],
                     }
                 )
@@ -397,6 +398,8 @@ def criar_app():
                     "ordem": trecho.ordem,
                     "origem": trecho.origem_icao,
                     "destino": trecho.destino_icao,
+                    "origem_nome": saida.nome,
+                    "destino_nome": chegada.nome,
                     "pontos": pontos_do_trecho,
                 }
             )
@@ -441,12 +444,12 @@ def criar_app():
             "plano.html",
             plano=plano,
             aeronave=aeronave,
+            aerodromos_rota=aerodromos_rota,
             pontos_por_trecho=pontos_por_trecho,
             boletins=linhas_boletim(meteorologia_atual),
             boletins_por_aerodromo=_boletins_por_aerodromo(plano, meteorologia_atual),
             meteorologia=meteorologia_atual,
             radar=radar_atual,
-            orientacao=ler_orientacao_plano(),
             openaip_configurada=bool(os.environ.get("OPENAIP_API_KEY", "").strip()),
         )
 
