@@ -1,11 +1,11 @@
 <!--
 Sync Impact Report
-- Version change: 5.2.0 → 6.0.0
-- Modified principles: IV. Unidades e fonte explícitas (exceção para proxies sintéticos didáticos)
-- Modified sections: Restrições adicionais; Governance
-- Added sections: Perfis sintéticos didáticos de aeronaves
-- Removed sections: Dados sintéticos de demonstração isolada
-- Follow-up TODOs: atualizar a especificação de banco único e detalhar a transição antes de implementar
+- Version change: 6.1.0 → 7.0.0
+- Modified principles: IV. Unidades e fonte explícitas (exceção delimitada para detalhes do plano)
+- Modified sections: Perfis sintéticos didáticos (rótulo detalhado pode ser omitido na página do plano)
+- Added sections: none
+- Removed sections: none
+- Follow-up TODOs: especificar e implementar a limpeza visual da página do plano
 -->
 
 # Plano de voo Constitution
@@ -55,10 +55,15 @@ são os perfis sintéticos didáticos de aeronaves definidos em “Perfis sinté
 didáticos de aeronaves”: seus valores podem não ter validação nem
 compatibilidade com o modelo usado como alvo e MUST NOT ser apresentados como
 dados factuais daquele modelo. Esses valores MUST ser identificados como
-sintéticos em toda seleção, cálculo, resultado e PDF. Cada campo MUST manter
-sua unidade e identificação de origem sintética, sem atribuir publicador ou
-data editorial fictícios. Texto de interface e PDF MUST permanecer em
-português.
+sintéticos em toda seleção, cálculo, resultado fora da página de detalhes do
+plano e no PDF. Na página de detalhes do plano, a advertência específica de
+perfil sintético, a identificação do alvo do exercício e a tabela extensa de
+fontes técnicas MAY ser omitidas. A página MUST manter o aviso geral de uso
+didático e de que o resultado não autoriza o voo, e MUST NOT apresentar
+valores sintéticos como dados factuais ou validados. Cada valor técnico
+sintético exibido nessa página MUST manter sua unidade e identificação de
+origem sintética, sem atribuir publicador ou data editorial fictícios. Texto
+de interface e PDF MUST permanecer em português.
 Falha de meteorologia, vento, carta, camada aeronáutica suplementar ou radar
 MUST aparecer como indisponível. É proibido inventar boletim, vento, carta ou
 radar.
@@ -83,8 +88,19 @@ repositório, atribuição visível conforme os termos do provedor e cumprimento
 da licença CC BY-NC 4.0, inclusive sua restrição de uso não comercial. Se a
 licença, a atribuição, a chave ou a disponibilidade não puderem ser
 confirmadas, a camada MUST ficar indisponível e informar o motivo; não pode
-haver fallback silencioso. O radar continua sendo uma sobreposição
-independente da REDEMET, e a base de ruas MUST ser identificada como tal.
+haver fallback silencioso.
+
+O radar oficial MUST continuar vindo da REDEMET e MUST permanecer uma camada
+independente. RainViewer MAY ser oferecido como uma camada suplementar
+separada, não oficial e sem chave, somente para fins educacionais permitidos
+pelos termos vigentes do serviço. Essa camada MUST identificar RainViewer
+como fonte, exibir crédito visível com link, apresentar o horário fornecido
+pela fonte e indicar indisponibilidade quando faltarem cobertura, tiles ou
+dados verificáveis. Ela MUST NOT substituir automaticamente a REDEMET nem
+ser apresentada como radar oficial. A cobertura e disponibilidade podem
+mudar e não têm garantia; se os termos vigentes ou as condições de uso não
+puderem ser confirmados, a camada MUST ficar indisponível. A base de ruas
+MUST ser identificada como tal.
 
 ## Restrições adicionais
 
@@ -115,11 +131,15 @@ modelo MUST NOT ser mantidos.
 
 A associação a um modelo real identifica somente o tema do exercício; MUST
 NOT ser apresentada como identificação, especificação ou validação daquela
-aeronave. A seleção, os cálculos, os resultados e o PDF MUST identificar
-claramente “perfil sintético didático — valores não validados; não representam
-dados do modelo associado”. A interface e o PDF MUST também manter o aviso de
-que o sistema é exclusivamente didático, não serve para planejamento de voo
-real e não autoriza voo.
+aeronave. A seleção, os cálculos, os resultados fora da página de detalhes do
+plano e o PDF MUST identificar claramente “perfil sintético didático — valores
+não validados; não representam dados do modelo associado”. Na página de
+detalhes do plano, o rótulo completo, a identificação do alvo do exercício e
+a tabela extensa de fontes técnicas MAY ser omitidos, desde que a página
+mantenha o aviso de que o sistema é exclusivamente didático, não serve para
+planejamento de voo real e não autoriza voo. Qualquer valor técnico sintético
+individual exibido nessa página MUST continuar identificado como sintético,
+com sua unidade.
 
 Cada campo sintético MUST manter unidade e identificação de que seu valor é
 sintético. A falta de fonte aeronáutica aplicável MUST NOT impedir a
@@ -187,12 +207,14 @@ MUST ficar no servidor.
 
 Cada plano pertence a um piloto. A consulta de plano MUST filtrar pelo piloto
 da sessão. Meteorologia de aeródromo vem do Aviation Weather Center.
-Radar vem da REDEMET e carta visual oficial vigente vem do AISWEB. Sem a chave
-correspondente, aquele item fica indisponível. OpenAIP só pode aparecer como
-camada aeronáutica comunitária suplementar, nos termos definidos no princípio
-V, nunca rotulada como WAC. Vento de rota vem do produto
-oficial de vento de área da REDEMET; se o produto não cobrir a rota, o perfil
-fica indisponível.
+Radar oficial vem da REDEMET e carta visual oficial vigente vem do AISWEB.
+Sem a chave correspondente, aquele item fica indisponível. RainViewer só
+pode aparecer como camada suplementar de radar não oficial, separada da
+REDEMET e sujeita aos termos definidos no princípio V. OpenAIP só pode
+aparecer como camada aeronáutica comunitária suplementar, nos termos
+definidos no princípio V, nunca rotulada como WAC. Vento de rota vem do
+produto oficial de vento de área da REDEMET; se o produto não cobrir a rota,
+o perfil fica indisponível.
 
 | Camada | Escolha |
 | --- | --- |
@@ -202,7 +224,8 @@ fica indisponível.
 | Acesso e migração | SQLAlchemy 2, psycopg 3, Alembic |
 | Acesso do piloto | Hash de senha do Werkzeug e sessão Flask, sem segundo fator |
 | Meteorologia de aeródromo | requests 2.31.0, Aviation Weather Center |
-| Radar e vento de área | REDEMET, com chave fora do repositório |
+| Radar oficial e vento de área | REDEMET, com chave fora do repositório |
+| Radar suplementar | RainViewer, sem chave na API pública atual; uso educacional, crédito com link, não oficial e sem garantia de cobertura ou disponibilidade |
 | Carta visual | AISWEB, carta WAC vigente, com chave fora do repositório |
 | Camada aeronáutica suplementar | OpenAIP, não oficial, CC BY-NC 4.0, chave fora do repositório e atribuição visível |
 | PDF | reportlab 4.0.7 |
@@ -256,4 +279,4 @@ fonte suplementar não oficial, com a atribuição e as condições de licença
 cumpridas, e que a indisponibilidade da carta oficial AISWEB não seja escondida
 por substituição automática.
 
-**Version**: 6.0.0 | **Ratified**: 2026-10-21 | **Last Amended**: 2026-11-25
+**Version**: 7.0.0 | **Ratified**: 2026-10-21 | **Last Amended**: 2026-11-26

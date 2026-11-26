@@ -2,8 +2,11 @@ import json
 import re
 import subprocess
 
+import pytest
 from flask import template_rendered
 
+from servidor import rainviewer
+from servidor import tempo as tempo_mod
 from servidor.catalogo import carregar_rab
 from servidor.modelos import (
     Aerodromo,
@@ -17,6 +20,41 @@ from servidor.modelos import (
 from servidor.perfis_sinteticos import PERFIS_SINTETICOS
 from tests.conftest import JSON, cadastrar, plano_valido
 from tests.conftest_rota import semear_perfis_sinteticos_teste
+
+
+def _meteorologia_indisponivel(origem, destino, getter=None, *, aerodromos=None):
+    lugares = list(aerodromos or (origem, destino))
+    for lugar in (origem, destino):
+        if all(aero.icao != lugar.icao for aero in lugares):
+            lugares.append(lugar)
+    boletins = {
+        lugar.icao: {
+            "estado": "indisponivel",
+            "fonte": "Aviation Weather Center",
+        }
+        for lugar in lugares
+    }
+    return {
+        "estado": "indisponivel",
+        "origem": boletins[origem.icao],
+        "destino": boletins[destino.icao],
+        "aerodromos": boletins,
+    }
+
+
+@pytest.fixture(autouse=True)
+def _nao_consultar_metar_real(monkeypatch):
+    monkeypatch.setattr(
+        tempo_mod,
+        "meteorologia",
+        lambda *args, **kwargs: {"estado": "indisponivel"},
+    )
+    monkeypatch.setattr(
+        tempo_mod,
+        "meteorologia_rota",
+        _meteorologia_indisponivel,
+        raising=False,
+    )
 
 
 def adicionar_trecho_de_retorno(plano_id):
@@ -628,7 +666,7 @@ def test_mapa_disponibiliza_openaip_com_atribuicao_e_estado_explicito(cliente, m
     assert "fake-private-key" not in html
 
 
-def test_fichas_mostram_metar_e_taf_dos_aerodromos_do_trecho(cliente):
+def test_fichas_mostram_metar_e_taf_dos_aerodromos_do_trecho(cliente, monkeypatch):
     cadastrar(cliente)
     criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
     plano_id = criado.get_json()["id"]
@@ -636,7 +674,7 @@ def test_fichas_mostram_metar_e_taf_dos_aerodromos_do_trecho(cliente):
     db = Sessao()
     try:
         plano = db.get(PlanoDeVoo, plano_id)
-        plano.meteorologia = {
+        meteorologia = {
             "estado": "disponivel",
             "origem": {"estado": "disponivel"},
             "destino": {"estado": "disponivel"},
@@ -670,9 +708,15 @@ def test_fichas_mostram_metar_e_taf_dos_aerodromos_do_trecho(cliente):
                 },
             },
         }
+        plano.meteorologia = meteorologia
         db.commit()
     finally:
         Sessao.remove()
+    monkeypatch.setattr(
+        tempo_mod,
+        "meteorologia_rota",
+        lambda *args, **kwargs: meteorologia,
+    )
 
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
     primeira_ficha = re.search(
@@ -723,36 +767,17 @@ def test_mapa_mantem_openaip_indisponivel_sem_chave(cliente, monkeypatch):
     assert 'id="radar-toggle" type="checkbox" checked' not in html
 
 
-def test_tabela_de_procedencia_tem_rolagem_horizontal_propria(cliente):
+def test_pagina_plano_omite_tabela_de_procedencia(cliente):
     cadastrar(cliente)
     criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
     plano_id = criado.get_json()["id"]
 
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
-    area = re.search(
-        r'<div class="rolagem larga">\s*(<table\b.*?</table>)\s*</div>',
-        html,
-        re.S,
-    )
-
-    assert area
-    cabecalhos = re.findall(r"<th(?:\s[^>]*)?>(.*?)</th>", area.group(1), re.S)
-    assert cabecalhos == [
-        "Grandeza",
-        "Valor",
-        "Unidade",
-        "Faixa",
-        "Publicador e referência",
-        "Data",
-        "Aplicabilidade e perfil",
-        "Método/versão",
-        "Incerteza/comparabilidade",
-        "Edição/revisão",
-        "Página/tabela",
-    ]
+    assert "<h2>Fontes técnicas da aeronave</h2>" not in html
 
 
-def test_plano_antigo_mostra_indisponibilidade_generica_do_radar(cliente):
+def test_plano_antigo_mostra_motivo_da_indisponibilidade_do_radar(cliente, monkeypatch):
+    monkeypatch.delenv("REDEMET_API_KEY", raising=False)
     cadastrar(cliente)
     criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
     plano_id = criado.get_json()["id"]
@@ -768,7 +793,214 @@ def test_plano_antigo_mostra_indisponibilidade_generica_do_radar(cliente):
     estado = re.search(r'<p[^>]*id="estado-radar"[^>]*>(.*?)</p>', html, re.S)
 
     assert estado
-    assert estado.group(1).strip() == "Radar indisponível."
+    assert estado.group(1).strip() == "Chave REDEMET não configurada."
+
+
+def test_rainviewer_nao_e_consultado_ao_abrir_o_plano(cliente, monkeypatch):
+    chamadas = []
+    monkeypatch.setattr(
+        rainviewer,
+        "buscar_frame",
+        lambda: chamadas.append("manifesto"),
+    )
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+
+    html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
+
+    assert chamadas == []
+    assert re.search(r'<input\b(?=[^>]*id="rainviewer-toggle")(?=[^>]*type="checkbox")[^>]*>', html)
+    assert "RainViewer — radar não oficial" in html
+    assert 'href="https://www.rainviewer.com/"' in html
+
+
+def test_rotas_rainviewer_exigem_sessao_e_propriedade_do_plano(cliente, monkeypatch):
+    chamadas = []
+    chamadas_tiles = []
+    chamadas_cobertura = []
+
+    def buscar_tile_falso(frame, z, x, y):
+        chamadas_tiles.append((frame, z, x, y))
+        return b"\x89PNG\r\n\x1a\n tile", "public, max-age=60"
+
+    def buscar_mascara_falsa(z, x, y):
+        chamadas_cobertura.append((z, x, y))
+        return b"\x89PNG\r\n\x1a\n mask", "public, max-age=60"
+
+    monkeypatch.setattr(
+        rainviewer,
+        "buscar_frame",
+        lambda: (
+            chamadas.append("manifesto")
+            or {"frame": "current-frame", "hora": 200, "max_zoom": 7}
+        ),
+    )
+    monkeypatch.setattr(
+        rainviewer,
+        "buscar_tile",
+        buscar_tile_falso,
+    )
+    monkeypatch.setattr(
+        rainviewer,
+        "buscar_mascara",
+        buscar_mascara_falsa,
+    )
+
+    sem_sessao = cliente.get("/planos/1/camadas/rainviewer", headers=JSON)
+    assert sem_sessao.status_code == 401
+
+    cadastrar(cliente, identificacao="ana")
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+
+    manifesto = cliente.get(
+        f"/planos/{plano_id}/camadas/rainviewer",
+        headers=JSON,
+    )
+    assert manifesto.status_code == 200
+    assert manifesto.get_json()["hora_frame"] == 200
+    assert "current-frame" in manifesto.get_json()["radar_url"]
+    assert len(chamadas) == 1
+
+    tile = cliente.get(
+        f"/planos/{plano_id}/camadas/rainviewer/radar/current-frame/3/2/5.png",
+        headers=JSON,
+    )
+    assert tile.status_code == 200
+    assert tile.mimetype == "image/png"
+    assert tile.headers["X-Content-Type-Options"] == "nosniff"
+    assert chamadas_tiles == [("current-frame", 3, 2, 5)]
+
+    cobertura = cliente.get(
+        f"/planos/{plano_id}/camadas/rainviewer/cobertura/3/2/5.png",
+        headers=JSON,
+    )
+    assert cobertura.status_code == 200
+    assert cobertura.mimetype == "image/png"
+    assert cobertura.headers["Cache-Control"] == "public, max-age=60"
+    assert chamadas_cobertura == [(3, 2, 5)]
+
+    cadastrar(cliente, identificacao="bob")
+    negado = cliente.get(
+        f"/planos/{plano_id}/camadas/rainviewer",
+        headers=JSON,
+    )
+    assert negado.status_code == 404
+
+
+def test_detalhe_atualiza_meteorologia_html_e_json_sem_persistir(cliente, monkeypatch):
+    monkeypatch.delenv("REDEMET_API_KEY", raising=False)
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+
+    db = Sessao()
+    try:
+        plano = db.get(PlanoDeVoo, plano_id)
+        trechos_antes = [
+            (
+                trecho.ordem,
+                trecho.origem_icao,
+                trecho.destino_icao,
+                trecho.tempo_valor,
+                trecho.combustivel_valor,
+            )
+            for trecho in plano.trechos
+        ]
+        resultado_antes = dict(plano.resultado)
+        plano.meteorologia = {
+            "estado": "disponivel",
+            "aerodromos": {
+                "SBJD": {
+                    "estado": "disponivel",
+                    "metar": {"raw": "METAR SBJD OLD"},
+                }
+            },
+        }
+        plano.radar = {"estado": "disponivel", "url": "https://example.test/old.png"}
+        db.commit()
+    finally:
+        Sessao.remove()
+
+    boletim_atual = {
+        "estado": "disponivel",
+        "fonte": "Aviation Weather Center",
+        "metar": {
+            "icao": "SBJD",
+            "raw": "METAR SBJD 011200Z 18010KT",
+            "hora": "2026-12-01T12:00:00Z",
+            "vento_kt": 10,
+            "unidade_vento": "kt",
+            "fonte": "Aviation Weather Center",
+        },
+        "taf": {"raw": "TAF SBJD 011100Z 18008KT"},
+    }
+    meteorologia_atual = {
+        "estado": "disponivel",
+        "origem": boletim_atual,
+        "destino": {"estado": "indisponivel", "fonte": "Aviation Weather Center"},
+        "aerodromos": {
+            "SBJD": boletim_atual,
+            "SBAU": {"estado": "indisponivel", "fonte": "Aviation Weather Center"},
+        },
+    }
+    radar_atual = {
+        "estado": "disponivel",
+        "url": "https://example.test/current.png",
+        "hora": "2026-12-01T12:00:00Z",
+        "lat_min": -25.0,
+        "lat_max": -20.0,
+        "lon_min": -52.0,
+        "lon_max": -45.0,
+        "fonte": "REDEMET MaxCappi",
+    }
+    chamadas_meteorologia = []
+    chamadas_radar = []
+
+    def meteorologia_falsa(*args, **kwargs):
+        chamadas_meteorologia.append(1)
+        return meteorologia_atual
+
+    def radar_falso(*args, **kwargs):
+        chamadas_radar.append(1)
+        return radar_atual
+
+    monkeypatch.setattr(tempo_mod, "meteorologia_rota", meteorologia_falsa)
+    monkeypatch.setattr(tempo_mod, "radar", radar_falso)
+
+    html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
+    resposta_json = cliente.get(f"/planos/{plano_id}", headers=JSON)
+    corpo = resposta_json.get_json()
+
+    assert resposta_json.status_code == 200
+    assert "METAR SBJD 011200Z 18010KT" in html
+    assert "METAR SBJD OLD" not in html
+    assert "https://example.test/current.png" in html
+    assert corpo["meteorologia"] == meteorologia_atual
+    assert corpo["radar"] == radar_atual
+    assert len(chamadas_meteorologia) == 2
+    assert len(chamadas_radar) == 2
+
+    db = Sessao()
+    try:
+        plano = db.get(PlanoDeVoo, plano_id)
+        assert plano.meteorologia["aerodromos"]["SBJD"]["metar"]["raw"] == "METAR SBJD OLD"
+        assert plano.radar["url"] == "https://example.test/old.png"
+        assert plano.destino_icao == "SBAU"
+        assert plano.resultado == resultado_antes
+        assert [
+            (
+                trecho.ordem,
+                trecho.origem_icao,
+                trecho.destino_icao,
+                trecho.tempo_valor,
+                trecho.combustivel_valor,
+            )
+            for trecho in plano.trechos
+        ] == trechos_antes
+    finally:
+        Sessao.remove()
 
 
 def test_tile_openaip_exige_sessao_e_propriedade_do_plano(cliente, monkeypatch):

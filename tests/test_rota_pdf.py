@@ -111,8 +111,13 @@ def test_perfil_sintetico_preserva_rotulo_no_resultado_e_no_pdf(cliente):
     finally:
         Sessao.remove()
 
-    assert "perfil sintético didático — valores não validados" in html
-    assert "<h2>Fontes técnicas da aeronave</h2>" in html
+    assert "Estado: aceitável para planejamento" not in html
+    assert "perfil sintético didático — valores não validados" not in html
+    assert "Alvo do exercício:" not in html
+    assert "Em cada escala, a hipótese é reabastecer" not in html
+    assert "<h2>Fontes técnicas da aeronave</h2>" not in html
+    assert "Aeronave: CESSNA AIRCRAFT 152." in html
+    assert "Não é autorização de voo." in html
     assert "CESSNA AIRCRAFT 152" in html
     assert "faixa de teste" not in html
     assert "DEMO" not in html

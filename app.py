@@ -5,6 +5,8 @@ from flask import Flask, flash, g, jsonify, redirect, render_template, request, 
 
 from servidor import carregar_env
 from servidor import openaip
+from servidor import rainviewer
+from servidor import tempo
 from servidor.ambiente import resolver_ambiente
 from servidor.auth import (
     MENSAGEM_RECUSA,
@@ -23,7 +25,12 @@ from servidor.catalogo import (
     procedencia_aeronave,
 )
 from servidor.modelos import Aeronave, Aerodromo, Sessao, agora, configurar
-from servidor.pdf_plano import gerar_pdf, ler_orientacao, rotulo_lido
+from servidor.pdf_plano import (
+    gerar_pdf,
+    ler_orientacao,
+    ler_orientacao_plano,
+    rotulo_lido,
+)
 from servidor.tempo import campos_metar, linhas_boletim
 from servidor.planos import (
     apagar,
@@ -46,8 +53,8 @@ def _visto(valor):
     return hora
 
 
-def _boletins_por_aerodromo(plano):
-    meteorologia = plano.meteorologia if isinstance(plano.meteorologia, dict) else {}
+def _boletins_por_aerodromo(plano, meteorologia_atual):
+    meteorologia = meteorologia_atual if isinstance(meteorologia_atual, dict) else {}
     aerodromos = meteorologia.get("aerodromos")
     if not isinstance(aerodromos, dict):
         aerodromos = {}
@@ -367,9 +374,13 @@ def criar_app():
             return render_template("recusa.html"), 404
         aeronave = g.db.get(Aeronave, plano.aeronave_id)
         pontos_por_trecho = []
+        aerodromos_rota = {}
         for trecho in plano.trechos:
-            saida = g.db.get(Aerodromo, trecho.origem_icao)
-            chegada = g.db.get(Aerodromo, trecho.destino_icao)
+            for icao in (trecho.origem_icao, trecho.destino_icao):
+                if icao not in aerodromos_rota:
+                    aerodromos_rota[icao] = g.db.get(Aerodromo, icao)
+            saida = aerodromos_rota[trecho.origem_icao]
+            chegada = aerodromos_rota[trecho.destino_icao]
             if saida is None or chegada is None:
                 pontos_por_trecho.append(
                     {
@@ -389,16 +400,53 @@ def criar_app():
                     "pontos": pontos_do_trecho,
                 }
             )
+        aerodromos_rota.setdefault(
+            plano.origem_icao,
+            g.db.get(Aerodromo, plano.origem_icao),
+        )
+        aerodromos_rota.setdefault(
+            plano.destino_icao,
+            g.db.get(Aerodromo, plano.destino_icao),
+        )
+        origem = aerodromos_rota.get(plano.origem_icao)
+        destino = aerodromos_rota.get(plano.destino_icao)
+        if origem is not None and destino is not None:
+            meteorologia_atual = tempo.meteorologia_rota(
+                origem,
+                destino,
+                aerodromos=[
+                    aerodromo
+                    for aerodromo in aerodromos_rota.values()
+                    if aerodromo is not None
+                ],
+            )
+            radar_atual = tempo.radar(origem, destino)
+        else:
+            meteorologia_atual = {
+                "estado": "indisponivel",
+                "origem": {"estado": "indisponivel"},
+                "destino": {"estado": "indisponivel"},
+                "aerodromos": {},
+            }
+            radar_atual = {
+                "estado": "indisponivel",
+                "motivo": "Coordenadas da rota indisponíveis.",
+            }
         if quer_json():
-            return jsonify(para_json(plano))
+            dados = para_json(plano)
+            dados["meteorologia"] = meteorologia_atual
+            dados["radar"] = radar_atual
+            return jsonify(dados)
         return render_template(
             "plano.html",
             plano=plano,
             aeronave=aeronave,
             pontos_por_trecho=pontos_por_trecho,
-            boletins=linhas_boletim(plano.meteorologia),
-            boletins_por_aerodromo=_boletins_por_aerodromo(plano),
-            orientacao=ler_orientacao(),
+            boletins=linhas_boletim(meteorologia_atual),
+            boletins_por_aerodromo=_boletins_por_aerodromo(plano, meteorologia_atual),
+            meteorologia=meteorologia_atual,
+            radar=radar_atual,
+            orientacao=ler_orientacao_plano(),
             openaip_configurada=bool(os.environ.get("OPENAIP_API_KEY", "").strip()),
         )
 
@@ -416,6 +464,99 @@ def criar_app():
             return jsonify({"mensagem": "Coordenadas de tile inválidas."}), 400
         except openaip.TileIndisponivel:
             return jsonify({"mensagem": "Camada OpenAIP indisponível."}), 503
+
+        resposta = app.response_class(conteudo, mimetype="image/png")
+        resposta.headers["X-Content-Type-Options"] = "nosniff"
+        if cache_control:
+            resposta.headers["Cache-Control"] = cache_control
+        return resposta
+
+    @app.get("/planos/<int:plano_id>/camadas/rainviewer")
+    def camada_rainviewer(plano_id):
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        if do_piloto(g.db, piloto.id, plano_id) is None:
+            return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
+        try:
+            frame = rainviewer.buscar_frame()
+        except rainviewer.RainViewerIndisponivel:
+            return jsonify(
+                {
+                    "estado": "indisponivel",
+                    "motivo": "Camada RainViewer indisponível.",
+                }
+            ), 503
+
+        radar_url = url_for(
+            "tile_rainviewer",
+            plano_id=plano_id,
+            frame=frame["frame"],
+            z=0,
+            x=0,
+            y=0,
+        ).replace("/0/0/0.png", "/{z}/{x}/{y}.png")
+        cobertura_url = url_for(
+            "cobertura_rainviewer",
+            plano_id=plano_id,
+            z=0,
+            x=0,
+            y=0,
+        ).replace("/0/0/0.png", "/{z}/{x}/{y}.png")
+        return jsonify(
+            {
+                "estado": "disponivel",
+                "fonte": "RainViewer — radar não oficial",
+                "atribuicao": {
+                    "texto": "Weather data by RainViewer",
+                    "url": "https://www.rainviewer.com/",
+                },
+                "hora_frame": frame["hora"],
+                "max_zoom": frame["max_zoom"],
+                "radar_url": radar_url,
+                "cobertura_url": cobertura_url,
+            }
+        )
+
+    @app.get(
+        "/planos/<int:plano_id>/camadas/rainviewer/radar/<frame>/<z>/<x>/<y>.png"
+    )
+    def tile_rainviewer(plano_id, frame, z, x, y):
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        if do_piloto(g.db, piloto.id, plano_id) is None:
+            return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
+        try:
+            coordenadas = tuple(int(valor) for valor in (z, x, y))
+            conteudo, cache_control = rainviewer.buscar_tile(frame, *coordenadas)
+        except ValueError:
+            return jsonify({"mensagem": "Coordenadas de tile inválidas."}), 400
+        except rainviewer.RainViewerIndisponivel:
+            return jsonify({"mensagem": "Tile RainViewer indisponível."}), 503
+
+        resposta = app.response_class(conteudo, mimetype="image/png")
+        resposta.headers["X-Content-Type-Options"] = "nosniff"
+        if cache_control:
+            resposta.headers["Cache-Control"] = cache_control
+        return resposta
+
+    @app.get(
+        "/planos/<int:plano_id>/camadas/rainviewer/cobertura/<z>/<x>/<y>.png"
+    )
+    def cobertura_rainviewer(plano_id, z, x, y):
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        if do_piloto(g.db, piloto.id, plano_id) is None:
+            return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
+        try:
+            coordenadas = tuple(int(valor) for valor in (z, x, y))
+            conteudo, cache_control = rainviewer.buscar_mascara(*coordenadas)
+        except ValueError:
+            return jsonify({"mensagem": "Coordenadas de tile inválidas."}), 400
+        except rainviewer.RainViewerIndisponivel:
+            return jsonify({"mensagem": "Cobertura RainViewer indisponível."}), 503
 
         resposta = app.response_class(conteudo, mimetype="image/png")
         resposta.headers["X-Content-Type-Options"] = "nosniff"

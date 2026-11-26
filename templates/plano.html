@@ -6,13 +6,10 @@
         <h1 class="m-0">{{ plano.origem_icao }} → {{ plano.destino_icao }}</h1>
         <a class="inline-flex min-h-11 items-center rounded-2xl bg-aviation-yellow px-4 font-[inherit] text-aviation-navy no-underline" href="{{ url_for('pdf', plano_id=plano.id) }}">IMPRIMIR VOO</a>
     </div>
-    <p>Aeronave: {{ aeronave.nome }}. Estado: {{ rotulo_lido(plano.estado) }}.</p>
-    {% if plano.resultado.get("proxy_sintetico") %}
-    <p>perfil sintético didático — valores não validados; não representam dados do modelo associado</p>
-    <p>Alvo do exercício: {{ plano.resultado.get("modelo_alvo") }}. A associação temática não comprova aplicabilidade.</p>
-    {% elif plano.resultado.get("dados_sinteticos") %}
-    <p>perfil sintético didático — valores não validados; não representam dados do modelo associado</p>
-    {% elif plano.resultado.get("estimativa_didatica") %}
+    <p>Aeronave: {{ aeronave.nome }}.</p>
+    {% if plano.resultado.get("estimativa_didatica")
+        and not plano.resultado.get("proxy_sintetico")
+        and not plano.resultado.get("dados_sinteticos") %}
     <p>Há dados secundários identificados como estimativas didáticas. Não são adequados para planejamento de voo real e não autorizam o voo.</p>
     {% endif %}
     {% if plano.motivo %}<p>{{ plano.motivo }}</p>{% endif %}
@@ -23,41 +20,6 @@
     <p>Trecho {{ trecho.ordem }}: {{ trecho.origem_icao }} — {{ trecho.destino_icao }}. {{ trecho.distancia_valor }} {{ trecho.distancia_unidade }}.</p>
     {% endfor %}
 </section>
-
-{% if plano.hipotese_reabastecimento %}
-<p class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy">{{ plano.hipotese_reabastecimento }}</p>
-{% endif %}
-{% if plano.resultado.get("procedencia") %}
-<section class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy">
-<h2>Fontes técnicas da aeronave</h2>
-<div class="rolagem larga">
-<table class="w-full border-collapse [&_td]:border-b [&_td]:border-solid [&_td]:border-[#8AA0B8] [&_td]:px-[0.6rem] [&_td]:py-[0.3rem] [&_td]:text-left [&_th]:border-b [&_th]:border-solid [&_th]:border-[#8AA0B8] [&_th]:px-[0.6rem] [&_th]:py-[0.3rem] [&_th]:text-left [&_caption]:caption-bottom [&_caption]:pt-[0.4rem] [&_caption]:text-left">
-    <thead><tr><th>Grandeza</th><th>Valor</th><th>Unidade</th><th>Faixa</th><th>Publicador e referência</th><th>Data</th><th>Aplicabilidade e perfil</th><th>Método/versão</th><th>Incerteza/comparabilidade</th><th>Edição/revisão</th><th>Página/tabela</th></tr></thead>
-    <tbody>
-    {% for campo, fonte in plano.resultado.get("procedencia").items() %}
-        <tr>
-            <td>{{ campo|replace("_", " ")|capitalize }}</td>
-            {% if fonte %}
-            <td>{% if fonte.dados_sinteticos %}Dados sintéticos didáticos — {% elif fonte.estimativa_didatica %}Estimativa didática — {% endif %}{{ fonte.valor }}</td>
-            <td>{{ fonte.unidade }}</td>
-            <td>—</td>
-            <td>{% if fonte.dados_sinteticos %}Valor sintético didático; não representa dados do modelo associado{% else %}{{ fonte.publicador }}; {{ fonte.referencia }}{% endif %}</td>
-            <td>{% if fonte.dados_sinteticos %}—{% else %}Publicação: {{ fonte.data_publicacao or "indisponível" }}; consulta: {{ fonte.data_consulta or "indisponível" }}{% endif %}</td>
-            <td>{% if fonte.dados_sinteticos %}Sem aplicabilidade comprovada{% else %}{{ fonte.modelo_variante }}{% if fonte.perfil %}; {{ fonte.perfil }}{% endif %}{% endif %}</td>
-            <td>—</td>
-            <td>—</td>
-            <td>{{ fonte.revisao_edicao or "—" }}</td>
-            <td>{{ fonte.pagina_tabela or "—" }}</td>
-            {% else %}
-            <td colspan="10">Indisponível.</td>
-            {% endif %}
-        </tr>
-    {% endfor %}
-    </tbody>
-</table>
-</div>
-</section>
-{% endif %}
 
 {% if plano.resultado.linhas %}
 <section class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy">
@@ -155,9 +117,16 @@
                         <input id="radar-toggle" type="checkbox" disabled>
                         Radar de chuva
                     </label>
+                    <label class="flex min-h-11 items-center gap-[0.4rem]">
+                        <input id="rainviewer-toggle" type="checkbox" disabled>
+                        RainViewer — radar não oficial
+                    </label>
                     <p class="m-0" id="estado-wac" role="status">Carta de voo visual indisponível: a edição vigente, o georreferenciamento, a cobertura e a entrega reproduzível ainda não passaram pelos critérios de validação.</p>
                     <p class="m-0" id="estado-openaip" role="status" aria-live="polite">{% if not openaip_configurada %}OpenAIP indisponível: chave de serviço não configurada.{% endif %}</p>
-                    <p class="m-0" id="estado-radar" role="status" aria-live="polite">{% if plano.radar and plano.radar.get("estado") == "disponivel" %}Radar disponível; inicialmente desligado.{% else %}{{ (plano.radar or {}).get("motivo") or "Radar indisponível." }}{% endif %}</p>
+                    <p class="m-0" id="estado-radar" role="status" aria-live="polite">{% if radar and radar.get("estado") == "disponivel" %}Radar disponível; inicialmente desligado.{% else %}{{ (radar or {}).get("motivo") or "Radar indisponível." }}{% endif %}</p>
+                    <p class="m-0" id="estado-rainviewer" role="status" aria-live="polite">RainViewer desligado; a fonte será consultada somente quando você ativar a camada.</p>
+                    <p class="m-0" id="rainviewer-credit" hidden>Radar suplementar não oficial. Weather data by <a href="https://www.rainviewer.com/" target="_blank" rel="noopener noreferrer">RainViewer</a>.</p>
+                    <p class="m-0" id="rainviewer-cobertura" hidden>A máscara de cobertura pode estar desatualizada. Área sem cobertura não significa ausência de chuva.</p>
                     <p class="m-0" id="estado-mapa" role="status" aria-live="polite">Mapa preparado para {{ trecho.origem_icao }} — {{ trecho.destino_icao }}.</p>
                 </fieldset>
                 <div class="mt-[0.4rem] h-80" id="mapa" aria-label="Mapa do trecho ativo"></div>
@@ -239,7 +208,7 @@
   if (!elementoMapa || !estadoMapa || !dados) return;
 
   const trechos = JSON.parse(dados.textContent);
-  const radar = {{ (plano.radar or {}) | tojson }};
+  const radar = {{ (radar or {}) | tojson }};
   const motivoRadarIndisponivel = radar.motivo || (
     radar.estado === "disponivel"
       ? "Radar indisponível: URL ou limites geográficos inválidos."
@@ -249,16 +218,23 @@
   const ruasInput = document.getElementById("base-ruas");
   const openaipInput = document.getElementById("base-openaip");
   const radarToggle = document.getElementById("radar-toggle");
+  const rainviewerToggle = document.getElementById("rainviewer-toggle");
   const estadoOpenAIP = document.getElementById("estado-openaip");
   const estadoRadar = document.getElementById("estado-radar");
+  const estadoRainviewer = document.getElementById("estado-rainviewer");
+  const creditoRainviewer = document.getElementById("rainviewer-credit");
+  const coberturaRainviewer = document.getElementById("rainviewer-cobertura");
   const openaipUrl = {{ url_for("tile_openaip", plano_id=plano.id, z=2, x=0, y=0) | tojson }};
   const openaipTemplate = openaipUrl.replace(/\/2\/0\/0\.png$/, "/{z}/{x}/{y}.png");
+  const rainviewerManifestUrl = {{ url_for("camada_rainviewer", plano_id=plano.id) | tojson }};
   let mapa = null;
   let ruas = null;
   let openaip = null;
   let linha = null;
   let marcadores = [];
   let overlayRadar = null;
+  let radarRainviewer = null;
+  let coberturaRainviewerLayer = null;
   let openaipFalhou = false;
   let baseOpenAIPAtiva = false;
 
@@ -339,6 +315,90 @@
       radarToggle.disabled = true;
       if (estadoRadar) estadoRadar.textContent = motivoRadarIndisponivel;
     }
+
+    rainviewerToggle.disabled = false;
+    rainviewerToggle.addEventListener("change", async function () {
+      if (!rainviewerToggle.checked) {
+        if (radarRainviewer && mapa.hasLayer(radarRainviewer)) mapa.removeLayer(radarRainviewer);
+        if (coberturaRainviewerLayer && mapa.hasLayer(coberturaRainviewerLayer)) {
+          mapa.removeLayer(coberturaRainviewerLayer);
+        }
+        radarRainviewer = null;
+        coberturaRainviewerLayer = null;
+        creditoRainviewer.hidden = true;
+        coberturaRainviewer.hidden = true;
+        estadoRainviewer.textContent = "RainViewer desligado.";
+        return;
+      }
+
+      rainviewerToggle.disabled = true;
+      estadoRainviewer.textContent = "Consultando o frame RainViewer.";
+      try {
+        const resposta = await fetch(rainviewerManifestUrl, {
+          credentials: "same-origin",
+          headers: {Accept: "application/json"}
+        });
+        const manifesto = await resposta.json();
+        if (
+          !resposta.ok ||
+          !manifesto ||
+          typeof manifesto !== "object" ||
+          manifesto.estado !== "disponivel"
+        ) {
+          throw new Error(
+            (manifesto && manifesto.motivo) || "Camada RainViewer indisponível."
+          );
+        }
+
+        const opcoesTile = {
+          maxNativeZoom: manifesto.max_zoom,
+          maxZoom: 18
+        };
+        radarRainviewer = L.tileLayer(manifesto.radar_url, {
+          ...opcoesTile,
+          opacity: 0.7,
+          attribution: '&copy; <a href="https://www.rainviewer.com/">RainViewer</a>'
+        });
+        coberturaRainviewerLayer = L.tileLayer(manifesto.cobertura_url, {
+          ...opcoesTile,
+          opacity: 0.4
+        });
+        const falhaTileRainviewer = function () {
+          if (radarRainviewer && mapa.hasLayer(radarRainviewer)) mapa.removeLayer(radarRainviewer);
+          if (coberturaRainviewerLayer && mapa.hasLayer(coberturaRainviewerLayer)) {
+            mapa.removeLayer(coberturaRainviewerLayer);
+          }
+          radarRainviewer = null;
+          coberturaRainviewerLayer = null;
+          rainviewerToggle.checked = false;
+          creditoRainviewer.hidden = true;
+          coberturaRainviewer.hidden = true;
+          estadoRainviewer.textContent =
+            "RainViewer indisponível: falha no radar ou na máscara; cobertura desconhecida.";
+        };
+        radarRainviewer.on("tileerror", falhaTileRainviewer);
+        coberturaRainviewerLayer.on("tileerror", falhaTileRainviewer);
+        radarRainviewer.addTo(mapa);
+        coberturaRainviewerLayer.addTo(mapa);
+
+        const horaFrame = Number(manifesto.hora_frame);
+        const horario = Number.isFinite(horaFrame) && horaFrame > 0
+          ? new Date(horaFrame * 1000).toLocaleString("pt-BR")
+          : "não fornecido pela fonte";
+        creditoRainviewer.hidden = false;
+        coberturaRainviewer.hidden = false;
+        estadoRainviewer.textContent =
+          "RainViewer ativo — radar não oficial. Horário do frame: " + horario + ".";
+      } catch (erro) {
+        rainviewerToggle.checked = false;
+        creditoRainviewer.hidden = true;
+        coberturaRainviewer.hidden = true;
+        estadoRainviewer.textContent =
+          erro instanceof Error ? erro.message : "Camada RainViewer indisponível.";
+      } finally {
+        rainviewerToggle.disabled = false;
+      }
+    });
   }
 
   function atualizarTrecho(ordem) {

@@ -126,6 +126,35 @@ def test_buscar_consulta_uma_vez_por_aerodromo_distinto(monkeypatch):
     assert resultado["meteorologia"]["destino"] == resultado["meteorologia"]["aerodromos"]["SBJD"]
 
 
+def test_meteorologia_rota_consulta_cada_aerodromo_distinto_uma_vez(monkeypatch):
+    origem = _lugar(-23.2, -46.9, "SBJD")
+    destino = _lugar(-21.1, -50.4, "SBJD")
+    escala = _lugar(-22.0, -47.0, "SBAU")
+    chamadas = []
+
+    def meteorologia_falsa(icao, getter=None):
+        chamadas.append(icao)
+        return {
+            "estado": "disponivel",
+            "metar": {"raw": f"METAR {icao} 011200Z"},
+            "taf": None,
+            "fonte": "Aviation Weather Center",
+        }
+
+    monkeypatch.setattr(tempo_mod, "meteorologia", meteorologia_falsa)
+
+    resultado = tempo_mod.meteorologia_rota(
+        origem,
+        destino,
+        aerodromos=[origem, escala, destino, escala],
+    )
+
+    assert chamadas == ["SBJD", "SBAU"]
+    assert set(resultado["aerodromos"]) == {"SBJD", "SBAU"}
+    assert resultado["origem"] == resultado["aerodromos"]["SBJD"]
+    assert resultado["destino"] == resultado["aerodromos"]["SBJD"]
+
+
 def test_campos_metar_em_portugues_mantem_unidades_e_codigos_da_fonte():
     campos = campos_metar(
         {
@@ -274,7 +303,7 @@ def test_carta_wac_da_area_da_rota(monkeypatch):
     assert carta(origem, destino, longe) == {"estado": "indisponivel"}
 
 
-def test_tela_e_pdf_mostram_o_texto_do_boletim(cliente):
+def test_tela_mostra_boletim_atual_e_pdf_preserva_o_snapshot(cliente, monkeypatch):
     cadastrar(cliente)
     criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
     plano_id = criado.get_json()["id"]
@@ -297,15 +326,48 @@ def test_tela_e_pdf_mostram_o_texto_do_boletim(cliente):
         db.commit()
     finally:
         Sessao.remove()
+
+    boletim_atual = {
+        "estado": "disponivel",
+        "origem": {
+            "estado": "disponivel",
+            "metar": {"raw": "METAR SBJD 121300Z 19012KT"},
+            "taf": {"raw": "TAF SBJD 121200Z 19010KT"},
+        },
+        "destino": {
+            "estado": "disponivel",
+            "metar": {"raw": "METAR SBAU 121300Z 10006KT"},
+            "taf": {"estado": "indisponivel"},
+        },
+        "aerodromos": {},
+    }
+    monkeypatch.setattr(
+        tempo_mod,
+        "meteorologia_rota",
+        lambda *args, **kwargs: boletim_atual,
+    )
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
-    assert "METAR SBJD 121200Z 18010KT" in html
-    assert "TAF SBJD 121100Z 18008KT" in html
-    assert "METAR SBAU 121200Z 09005KT" in html
+    assert "METAR SBJD 121300Z 19012KT" in html
+    assert "TAF SBJD 121200Z 19010KT" in html
+    assert "METAR SBAU 121300Z 10006KT" in html
+    assert "METAR SBJD 121200Z 18010KT" not in html
     assert "TAF da chegada indisponível" in html
+
     pdf = cliente.get(f"/planos/{plano_id}/pdf").data
     assert b"METAR SBJD 121200Z 18010KT" in pdf
     assert b"TAF SBJD 121100Z 18008KT" in pdf
     assert b"TAF destino: indispon\\355vel" in pdf
+
+    monkeypatch.setattr(
+        tempo_mod,
+        "meteorologia_rota",
+        lambda *args, **kwargs: {
+            "estado": "indisponivel",
+            "origem": {"estado": "indisponivel"},
+            "destino": {"estado": "indisponivel"},
+            "aerodromos": {},
+        },
+    )
     db = Sessao()
     try:
         plano = db.get(PlanoDeVoo, plano_id)

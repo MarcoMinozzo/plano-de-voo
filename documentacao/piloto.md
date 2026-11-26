@@ -14,7 +14,11 @@ Seu nome de exibição pode ser alterado em Perfil e aparece na capa do relatór
 
 O plano tem uma ficha para cada trecho. A ficha mostra os METARs da saída e da chegada daquele trecho, com os campos estruturados que a fonte fornece identificados em português e nas unidades da fonte. O horário e a fonte aparecem junto aos dados, e o METAR original permanece visível sem tradução. Códigos não decodificados não recebem interpretação inventada. O TAF é apresentado separadamente, em seu texto original.
 
+METAR, TAF e radar são consultados novamente quando você abre um plano salvo. A consulta não altera a rota nem os cálculos. Os dados podem continuar indisponíveis se a fonte não tiver boletim, cobertura ou configuração necessária; a tela informa a indisponibilidade em vez de apresentar um boletim antigo como atual.
+
 O vento de área da rota, quando disponível, mostra a direção de onde vem, a velocidade e o efeito no voo. A carta oficial de voo visual (WAC) permanece indisponível até que edição vigente, georreferenciamento, cobertura, autorização e entrega reproduzível sejam validados; ela não é substituída por outra camada. O mapa de ruas apenas situa o trecho. OpenAIP é uma camada comunitária não oficial, não é uma carta WAC e não valida nem autoriza a rota. O radar começa desligado e pode ser ligado independentemente da base escolhida. Se estiver indisponível, a tela informa se falta a chave REDEMET, se não há cobertura válida para o trecho ou se a fonte falhou; a camada permanece desligada.
+
+RainViewer pode ser ativada separadamente como radar suplementar não oficial. A fonte só é consultada após a ativação, e o crédito com link fica visível enquanto a camada está ligada. A máscara de cobertura pode estar desatualizada; área sem cobertura não significa ausência de chuva. Se o radar ou a máscara falhar, a tela informa que a cobertura é desconhecida. RainViewer agrega redes de radar e não substitui nem altera a REDEMET. Seu uso depende dos termos educacionais vigentes e da disponibilidade do provedor.
 
 ## Item indisponível
 

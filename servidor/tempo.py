@@ -325,7 +325,7 @@ def linhas_boletim(meteorologia):
     return linhas
 
 
-def buscar(origem, destino, getter=None, *, aerodromos=None, vento=None):
+def meteorologia_rota(origem, destino, getter=None, *, aerodromos=None):
     lugares = list(aerodromos or (origem, destino))
     for lugar in (origem, destino):
         if all(aero.icao != lugar.icao for aero in lugares):
@@ -352,6 +352,16 @@ def buscar(origem, destino, getter=None, *, aerodromos=None, vento=None):
             "destino": boletins[destino.icao],
             "aerodromos": boletins,
         }
+    return meteorologia_plano
+
+
+def buscar(origem, destino, getter=None, *, aerodromos=None, vento=None):
+    meteorologia_plano = meteorologia_rota(
+        origem,
+        destino,
+        getter,
+        aerodromos=aerodromos,
+    )
     return {
         "meteorologia": meteorologia_plano,
         "vento": vento if vento is not None else vento_area(origem, destino, getter),

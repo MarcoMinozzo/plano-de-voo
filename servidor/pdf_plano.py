@@ -36,6 +36,15 @@ def ler_orientacao():
     return CAMINHO.read_text(encoding="utf-8")
 
 
+def ler_orientacao_plano():
+    texto = ler_orientacao()
+    return re.sub(
+        r"(?ms)^## Perfis sintéticos didáticos\s*\n.*?(?=^## |\Z)",
+        "",
+        texto,
+    ).strip()
+
+
 def trecho_limite():
     texto = ler_orientacao()
     marca = "## Limite do plano"
