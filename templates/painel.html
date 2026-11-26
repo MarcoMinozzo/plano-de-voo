@@ -12,7 +12,7 @@
         <tr>
             <td><a class="text-aviation-navy" href="{{ url_for('ver_plano', plano_id=plano.id) }}">{{ plano.origem_icao }}</a></td>
             <td>{{ plano.destino_icao }}</td>
-            <td>{{ plano.hora_partida }}</td>
+            <td>{{ plano.hora_partida.strftime("%d/%m/%Y %H:%M") }} TL</td>
             <td>{{ rotulo_lido(plano.estado) }}</td>
         </tr>
     {% else %}

@@ -1,12 +1,11 @@
 {% extends "base.html" %}
 {% block titulo %}{{ plano.origem_icao }} → {{ plano.destino_icao }}{% endblock %}
-{% block menu_imprimir %}
-<a class="inline-flex min-h-11 items-center rounded-2xl border-0 bg-transparent p-3 font-[inherit] text-aviation-white no-underline" href="{{ url_for('pdf', plano_id=plano.id) }}">Imprimir voo</a>
-{% endblock %}
-{% block aviso_impressao %}{% endblock %}
 {% block corpo %}
 <section class="vidro mx-auto my-4 w-[calc(100%-24px)] max-w-[40rem] rounded-3xl bg-aviation-glass p-6 text-aviation-white" id="resumo">
-    <h1>{{ plano.origem_icao }} → {{ plano.destino_icao }}</h1>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <h1 class="m-0">{{ plano.origem_icao }} → {{ plano.destino_icao }}</h1>
+        <a class="inline-flex min-h-11 items-center rounded-2xl bg-aviation-yellow px-4 font-[inherit] text-aviation-navy no-underline" href="{{ url_for('pdf', plano_id=plano.id) }}">IMPRIMIR VOO</a>
+    </div>
     <p>Aeronave: {{ aeronave.nome }}. Estado: {{ rotulo_lido(plano.estado) }}.</p>
     {% if plano.resultado.get("proxy_sintetico") %}
     <p>perfil sintético didático — valores não validados; não representam dados do modelo associado</p>

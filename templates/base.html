@@ -1,3 +1,22 @@
+{% macro itens_menu() -%}
+<a class="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-aviation-white no-underline hover:bg-aviation-navy/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-aviation-yellow" href="{{ url_for('novo_plano') }}">
+    <svg aria-hidden="true" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="m3.5 12 17-8-5.8 16-3.1-6.1L3.5 12Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m11.6 13.9 5-5"/></svg>
+    <span>NOVO VOO</span>
+</a>
+<a class="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-aviation-white no-underline hover:bg-aviation-navy/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-aviation-yellow" href="{{ url_for('painel') }}">
+    <svg aria-hidden="true" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M8 6h12M8 12h12M8 18h12"/><path stroke-linecap="round" stroke-linejoin="round" d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>
+    <span>VOOS PLANEJADOS</span>
+</a>
+<a class="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-aviation-white no-underline hover:bg-aviation-navy/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-aviation-yellow" href="{{ url_for('perfil') }}">
+    <svg aria-hidden="true" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path stroke-linecap="round" stroke-linejoin="round" d="M5 20a7 7 0 0 1 14 0"/></svg>
+    <span>PERFIL</span>
+</a>
+<form class="m-0 inline" method="post" action="{{ url_for('sair') }}">
+    <button aria-label="Sair" class="inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border-0 bg-transparent text-aviation-white hover:bg-aviation-navy/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-aviation-yellow" title="Sair" type="submit">
+        <svg aria-hidden="true" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10"/></svg>
+    </button>
+</form>
+{%- endmacro %}
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -8,28 +27,27 @@
 </head>
 <body class="m-0 min-h-screen bg-aviation-navy bg-center bg-cover bg-fixed font-sans leading-[1.45] text-aviation-navy before:pointer-events-none before:fixed before:inset-0 before:bg-aviation-overlay before:content-[''] max-md:overflow-x-hidden"
       style="background-image: url('{{ url_for('static', filename='casca/blueprint-airport-runway.jpg') }}')">
-    <header class="relative flex flex-wrap items-center gap-2 bg-aviation-navy p-3 text-aviation-white">
+    <header class="{% block classes_cabecalho %}relative grid min-h-[172px] grid-cols-[minmax(140px,1fr)_auto_minmax(140px,1fr)] items-center gap-8 px-8 py-4 text-aviation-white max-[60rem]:flex max-[60rem]:min-h-0 max-[60rem]:justify-between max-[60rem]:gap-4 max-[60rem]:px-4 max-[60rem]:py-3{% endblock %}">
         {% block logo_cabecalho %}
-        <img class="h-auto w-[72px]" src="{{ url_for('static', filename='casca/emblema-plano-de-voo.png') }}" alt="Plano de voo">
+        <img class="h-auto w-[140px] shrink-0" src="{{ url_for('static', filename='casca/emblema-plano-de-voo.png') }}" alt="Plano de voo">
         {% endblock %}
         {% if session.get('piloto_id') %}
-        <nav class="menu-voo flex flex-wrap items-center gap-2">
-            <a class="inline-flex min-h-11 items-center rounded-2xl border-0 bg-transparent p-3 font-[inherit] text-aviation-white no-underline" href="{{ url_for('novo_plano') }}">Novo voo</a>
-            <a class="inline-flex min-h-11 items-center rounded-2xl border-0 bg-transparent p-3 font-[inherit] text-aviation-white no-underline" href="{{ url_for('painel') }}">Voos planejados</a>
-            <a class="inline-flex min-h-11 items-center rounded-2xl border-0 bg-transparent p-3 font-[inherit] text-aviation-white no-underline" href="{{ url_for('perfil') }}">Perfil</a>
-            {% block menu_imprimir %}
-            <a class="inline-flex min-h-11 items-center rounded-2xl border-0 bg-transparent p-3 font-[inherit] text-aviation-white no-underline" href="#sem-voo">Imprimir voo</a>
-            {% endblock %}
-            <form class="m-0 inline" method="post" action="{{ url_for('sair') }}">
-                <button class="inline-flex min-h-11 cursor-pointer items-center rounded-2xl border-0 bg-transparent p-3 font-[inherit] text-aviation-white" type="submit">Sair</button>
-            </form>
+        <nav aria-label="Navegação principal" class="menu-voo vidro mx-auto hidden w-max max-w-[calc(100vw-64px)] flex-wrap items-center justify-center gap-1 rounded-3xl bg-aviation-glass px-5 py-3 min-[60rem]:flex">
+            {{ itens_menu() }}
         </nav>
-        {% block aviso_impressao %}
-        <p class="text-aviation-white" id="sem-voo">Não há voo para imprimir.</p>
-        {% endblock %}
+        <details class="menu-voo-mobile relative min-[60rem]:hidden">
+            <summary class="flex h-12 w-12 list-none cursor-pointer items-center justify-center rounded-2xl bg-aviation-glass text-aviation-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-aviation-yellow" title="Abrir ou fechar menu">
+                <svg aria-hidden="true" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <span class="sr-only">Menu principal</span>
+            </summary>
+            <nav aria-label="Navegação móvel" class="vidro absolute right-0 top-full z-30 mt-2 flex w-[calc(100vw-32px)] max-w-80 flex-col items-start gap-1 rounded-3xl bg-aviation-glass p-2">
+                {{ itens_menu() }}
+            </nav>
+        </details>
+        <div aria-hidden="true" class="hidden min-[60rem]:block"></div>
         {% endif %}
     </header>
-    <main class="relative p-3">
+    <main class="relative p-3 {% block classes_main %}{% endblock %}">
         {% block corpo %}{% endblock %}
     </main>
 </body>

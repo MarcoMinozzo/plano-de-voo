@@ -5,7 +5,7 @@ from tests.conftest import JSON, cadastrar, plano_valido
 
 PLANTA = "/static/casca/blueprint-airport-runway.jpg"
 EMBLEMA = 'alt="Plano de voo"'
-MENU = ("Novo voo", "Voos planejados", "Perfil", "Imprimir voo")
+MENU = ("NOVO VOO", "VOOS PLANEJADOS", "PERFIL")
 
 
 def _pagina(cliente, caminho):
@@ -55,6 +55,15 @@ def test_logo_no_cartao_de_autenticacao_sem_logo_no_cabecalho(cliente):
         cabecalho = re.search(r"<header\b[^>]*>(.*?)</header>", html, re.S)
         assert cartao is not None
         assert cabecalho is not None
+        cabecalho_tag = re.search(r"<header\b([^>]*)>", html, re.S)
+        principal = re.search(r"<main\b([^>]*)>", html, re.S)
+        assert cabecalho_tag is not None
+        assert principal is not None
+        assert "hidden" in cabecalho_tag.group(1)
+        assert all(
+            classe in principal.group(1)
+            for classe in ("flex", "min-h-screen", "items-center", "justify-center")
+        )
         logo = re.search(
             r'<img\b(?=[^>]*src="/static/casca/emblema-plano-de-voo\.png")([^>]*)>',
             cartao.group(1),
@@ -63,13 +72,33 @@ def test_logo_no_cartao_de_autenticacao_sem_logo_no_cabecalho(cliente):
         assert 'alt="Plano de voo"' in logo.group(1)
         assert "mx-auto" in logo.group(1)
         largura_esperada = (
-            "w-[103.68px]" if caminho == "/entrar" else "w-[86.4px]"
+            "w-[155.52px]" if caminho == "/entrar" else "w-[129.6px]"
         )
         assert largura_esperada in logo.group(1)
         assert "h-auto" in logo.group(1)
-        assert cartao.group(1).index(logo.group(0)) < cartao.group(1).index("<h1>")
+        titulo = (
+            '<h1 class="sr-only">Acessar</h1>'
+            if caminho == "/entrar"
+            else "<h1>Criar acesso</h1>"
+        )
+        assert titulo in cartao.group(1)
+        assert cartao.group(1).index(logo.group(0)) < cartao.group(1).index(titulo)
         assert EMBLEMA not in cabecalho.group(1)
         assert html.count(EMBLEMA) == 1
+        if caminho == "/entrar":
+            assert ">Acessar</button>" in cartao.group(1)
+            assert "mt-[0.6rem]" in cartao.group(1)
+            atribuicao = (
+                "Sistema Desenvolvido por Machina Sapiens - Todos os Direitos "
+                "Reservados - 2026"
+            )
+            assert atribuicao in cartao.group(1)
+            assert cartao.group(1).index("Criar acesso") < cartao.group(1).index(atribuicao)
+            assert re.search(
+                r'<p class="[^"]*text-sm[^"]*text-aviation-white[^"]*text-center[^"]*">'
+                + re.escape(atribuicao),
+                cartao.group(1),
+            )
 
 def test_vidro_na_entrada_e_no_plano_novo(cliente):
     entrada = _pagina(cliente, "/entrar")
@@ -114,21 +143,44 @@ def test_menu_resumo_e_impressao(cliente):
     assert "Sair" not in entrada
     cadastrar(cliente)
     novo = _pagina(cliente, "/planos/novo")
+    cabecalho = re.search(r"<header\b[^>]*>(.*?)</header>", novo, re.S)
+    assert cabecalho is not None
+    logo = re.search(
+        r'<img\b(?=[^>]*src="/static/casca/emblema-plano-de-voo\.png")([^>]*)>',
+        cabecalho.group(1),
+    )
+    assert logo is not None
+    assert "w-[140px]" in logo.group(1)
+    menu = re.search(r"<nav\b([^>]*)>(.*?)</nav>", cabecalho.group(1), re.S)
+    assert menu is not None
+    assert all(
+        classe in menu.group(1)
+        for classe in ("vidro", "bg-aviation-glass", "w-max", "px-5", "justify-center", "flex-wrap")
+    )
     for item in MENU:
-        assert item in novo
+        assert item in menu.group(2)
+    assert 'aria-label="Sair"' in menu.group(2)
+    assert "SAIR" not in menu.group(2)
+    assert "<summary " in cabecalho.group(1)
+    assert 'aria-label="Navegação móvel"' in cabecalho.group(1)
+    assert "IMPRIMIR VOO" not in menu.group(2)
     assert 'method="post"' in novo
-    assert ">Sair<" in novo
     assert 'href="/sair"' not in novo
-    assert "Não há voo para imprimir." in novo
     assert "/pdf" not in novo
     criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
     plano_id = criado.get_json()["id"]
+    painel = _pagina(cliente, "/painel")
+    assert "01/12/2026 12:00 TL" in painel
+    assert "12:00:00" not in painel
     plano = _pagina(cliente, f"/planos/{plano_id}")
     assert f"/planos/{plano_id}/pdf" in plano
+    resumo = re.search(r'<section\b(?=[^>]*\bid="resumo")([^>]*)>(.*?)</section>', plano, re.S)
+    assert resumo is not None
     assert re.search(
-        rf'<a class="[^"]*text-aviation-white[^"]*" href="/planos/{plano_id}/pdf">Imprimir voo</a>',
-        plano,
+        rf'<a\b[^>]*href="/planos/{plano_id}/pdf"[^>]*>IMPRIMIR VOO</a>',
+        resumo.group(2),
     )
+    assert "IMPRIMIR VOO" not in cabecalho.group(1)
     resumo = plano.index('id="resumo"')
     abas = plano.index('role="tablist"')
     assert resumo < abas
@@ -146,7 +198,9 @@ def test_todo_card_no_vidro_esfumacado_sem_vazar(cliente):
     css = Path(__file__).resolve().parents[1] / "static/css/input.css"
     estilos = css.read_text(encoding="utf-8")
     assert "backdrop-filter: blur(12px);" in estilos
-    assert "background-color: rgba(28, 51, 72, 0.82);" in estilos
+    assert "background-color: var(--color-aviation-glass);" in estilos
+    assert "--color-aviation-glass: rgba(8, 42, 84, 0.88);" in estilos
+    assert "--color-aviation-white: #f2f2f2;" in estilos
     assert "box-sizing: border-box;" in estilos
     assert "rgba(244, 247, 251, 0.94)" not in entrada
     assert 'href="/static/css/tailwind.css"' in entrada
@@ -163,11 +217,11 @@ def test_todo_card_no_vidro_esfumacado_sem_vazar(cliente):
     )
 
 
-def test_aviso_de_impressao_so_ao_pedir(cliente):
+def test_menu_global_nao_exibe_aviso_de_impressao(cliente):
     cadastrar(cliente)
     novo = _pagina(cliente, "/planos/novo")
     css = Path(__file__).resolve().parents[1] / "static/css/input.css"
     estilos = css.read_text(encoding="utf-8")
-    assert 'href="#sem-voo"' in novo
-    assert "#sem-voo {" in estilos
-    assert "#sem-voo:target {" in estilos
+    assert 'href="#sem-voo"' not in novo
+    assert "Não há voo para imprimir." not in novo
+    assert "#sem-voo" not in estilos

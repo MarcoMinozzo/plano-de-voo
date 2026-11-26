@@ -1,16 +1,19 @@
 {% extends "base.html" %}
+{% block classes_cabecalho %}hidden{% endblock %}
+{% block classes_main %}flex min-h-screen items-center justify-center{% endblock %}
 {% block logo_cabecalho %}{% endblock %}
 {% block titulo %}Entrar{% endblock %}
 {% block corpo %}
-<section class="vidro mx-auto my-4 w-[calc(100%-48px)] max-w-[40rem] rounded-3xl bg-aviation-glass p-6 text-aviation-white">
-    <img class="mx-auto mb-4 block h-auto w-[103.68px]" src="{{ url_for('static', filename='casca/emblema-plano-de-voo.png') }}" alt="Plano de voo">
-    <h1>Entrar</h1>
+<section class="vidro mx-auto my-0 w-[calc(100%-48px)] max-w-[40rem] rounded-3xl bg-aviation-glass p-6 text-aviation-white">
+    <img class="mx-auto mb-4 block h-auto w-[155.52px]" src="{{ url_for('static', filename='casca/emblema-plano-de-voo.png') }}" alt="Plano de voo">
+    <h1 class="sr-only">Acessar</h1>
     {% if mensagem %}<p class="erro text-aviation-yellow">{{ mensagem }}</p>{% endif %}
     <form class="grid gap-[0.6rem]" method="post">
         <label class="grid gap-[0.2rem]">Identificação <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="identificacao" required></label>
         <label class="grid gap-[0.2rem]">Senha <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="senha" type="password" required></label>
-        <button class="min-h-11 cursor-pointer rounded-2xl border-0 bg-aviation-yellow font-[inherit] text-aviation-navy" type="submit">Entrar</button>
+        <button class="mt-[0.6rem] min-h-11 cursor-pointer rounded-2xl border-0 bg-aviation-yellow font-[inherit] text-aviation-navy" type="submit">Acessar</button>
     </form>
     <p><a class="text-aviation-blue" href="{{ url_for('cadastro') }}">Criar acesso</a></p>
+    <p class="mt-2 text-sm text-aviation-white text-center">Sistema Desenvolvido por Machina Sapiens - Todos os Direitos Reservados - 2026</p>
 </section>
 {% endblock %}

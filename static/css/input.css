@@ -15,22 +15,11 @@
   --color-aviation-navy: #001030;
   --color-aviation-blue: #0090f0;
   --color-aviation-yellow: #f0a000;
-  --color-aviation-white: #f4f7fb;
-  --color-aviation-glass: rgba(28, 51, 72, 0.82);
+  --color-aviation-white: #f2f2f2;
+  --color-aviation-glass: rgba(8, 42, 84, 0.88);
   --color-aviation-paper: rgba(244, 247, 251, 0.94);
   --color-aviation-overlay: rgba(0, 16, 48, 0.35);
   --breakpoint-md: 45rem;
-}
-
-#sem-voo {
-  display: none;
-  flex-basis: 100%;
-  margin: 0;
-  padding: 0 12px;
-}
-
-#sem-voo:target {
-  display: block;
 }
 
 .vidro,
@@ -41,8 +30,8 @@
 }
 
 .leitura {
-  background-color: rgba(28, 51, 72, 0.82);
-  color: #f4f7fb;
+  background-color: var(--color-aviation-glass);
+  color: var(--color-aviation-white);
 }
 
 .vidro > :first-child,
@@ -70,7 +59,15 @@
 a,
 .vidro a,
 .leitura a {
-  color: #f4f7fb;
+  color: var(--color-aviation-white);
+}
+
+.menu-voo-mobile > summary {
+  list-style: none;
+}
+
+.menu-voo-mobile > summary::-webkit-details-marker {
+  display: none;
 }
 
 .rolagem {
