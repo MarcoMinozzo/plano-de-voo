@@ -64,13 +64,19 @@
             <p class="mt-1 text-sm text-aviation-white" id="destino-status" role="status" aria-live="polite" hidden></p>
         </div>
     </div>
-    <label class="grid gap-[0.2rem]">Data e hora <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="hora_partida" type="datetime-local" value="{{ info.hora_partida or '' }}" required></label>
-    <div id="confirma-hora" {% if not mostrar_confirmacao %}hidden{% endif %}>
-        <label class="grid gap-[0.2rem]"><input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="confirmar_hora" type="checkbox" value="true" {% if info.confirmar_hora %}checked{% endif %}> A hora já passou e eu quero planejar mesmo assim</label>
+    <div class="grid gap-[0.6rem] sm:grid-cols-2">
+        <div class="grid gap-[0.6rem]">
+            <label class="grid gap-[0.2rem]">Data e hora <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="hora_partida" type="datetime-local" value="{{ info.hora_partida or '' }}" required></label>
+            <div id="confirma-hora" {% if not mostrar_confirmacao %}hidden{% endif %}>
+                <label class="grid gap-[0.2rem]"><input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="confirmar_hora" type="checkbox" value="true" {% if info.confirmar_hora %}checked{% endif %}> A hora já passou e eu quero planejar mesmo assim</label>
+            </div>
+        </div>
+        <label class="grid gap-[0.2rem]">Número de passageiros <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="numero_passageiros" type="number" min="1" value="{{ info.numero_passageiros or '' }}" required></label>
     </div>
-    <label class="grid gap-[0.2rem]">Número de passageiros <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="numero_passageiros" type="number" min="1" value="{{ info.numero_passageiros or '' }}" required></label>
-    <label class="grid gap-[0.2rem]">Peso das pessoas (kg) <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="peso_pessoas_kg" type="number" step="0.1" min="0" value="{{ info.peso_pessoas_kg if info.peso_pessoas_kg is not none else '' }}" required></label>
-    <label class="grid gap-[0.2rem]">Peso da bagagem (kg) <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="peso_bagagem_kg" type="number" step="0.1" min="0" value="{{ info.peso_bagagem_kg if info.peso_bagagem_kg is not none else '' }}" required></label>
+    <div class="grid gap-[0.6rem] sm:grid-cols-2">
+        <label class="grid gap-[0.2rem]">Peso das pessoas (kg) <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="peso_pessoas_kg" type="number" step="0.1" min="0" value="{{ info.peso_pessoas_kg if info.peso_pessoas_kg is not none else '' }}" required></label>
+        <label class="grid gap-[0.2rem]">Peso da bagagem (kg) <input class="rounded-lg border-0 bg-aviation-white p-3 font-[inherit] text-aviation-navy" name="peso_bagagem_kg" type="number" step="0.1" min="0" value="{{ info.peso_bagagem_kg if info.peso_bagagem_kg is not none else '' }}" required></label>
+    </div>
     <button class="min-h-11 cursor-pointer rounded-2xl border-0 bg-aviation-yellow font-[inherit] text-aviation-navy" type="submit" {% if not aeronaves %}disabled{% endif %}>Calcular</button>
 </form>
 <article class="aviso mt-4">

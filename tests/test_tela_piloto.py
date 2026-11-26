@@ -105,6 +105,18 @@ def test_recusa_devolve_os_valores_e_nao_pede_hora_futura(cliente):
     assert "Não é autorização de voo." in html
 
 
+def test_formulario_agrupa_campos_em_duas_linhas_responsivas(cliente):
+    cadastrar(cliente)
+    html = cliente.get("/planos/novo").get_data(as_text=True)
+
+    assert html.count("sm:grid-cols-2") == 2
+    assert 'name="hora_partida"' in html
+    assert 'name="numero_passageiros"' in html
+    assert 'name="peso_pessoas_kg"' in html
+    assert 'name="peso_bagagem_kg"' in html
+    assert 'id="confirma-hora"' in html
+
+
 def test_sem_rab_selecao_de_aeronave_vazia_e_envio_desativado(cliente, monkeypatch, tmp_path):
     cadastrar(cliente)
     monkeypatch.setenv("RAB_EXTRATO", str(tmp_path / "extrato-inexistente.csv"))
