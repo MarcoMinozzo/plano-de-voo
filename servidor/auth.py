@@ -6,6 +6,9 @@ from servidor.modelos import Piloto, TentativaEntrada, agora
 
 MENSAGEM_RECUSA = "Acesso recusado."
 MENSAGEM_SENHA_CURTA = "A senha precisa ter no mínimo 8 caracteres."
+MENSAGEM_SENHA_ATUAL = "A senha atual não confere."
+MENSAGEM_SENHA_DIFERENTE = "Digite a mesma senha nos dois campos."
+MENSAGEM_SENHA_IGUAL = "Escolha uma senha diferente da atual."
 MENSAGEM_JA_USADA = "Identificação já usada."
 MENSAGEM_NOME_EXIBICAO = "Informe um nome de exibição com até 160 caracteres."
 JANELA = timedelta(minutes=15)
@@ -66,6 +69,20 @@ def cadastrar(db, identificacao, senha, nome_exibicao):
     db.add(piloto)
     db.commit()
     return piloto, None
+
+
+def alterar_senha(db, piloto, senha_atual, senha_nova, senha_confirmacao):
+    if not check_password_hash(piloto.senha_hash, senha_atual or ""):
+        return MENSAGEM_SENHA_ATUAL
+    if senha_nova != senha_confirmacao:
+        return MENSAGEM_SENHA_DIFERENTE
+    if senha_curta(senha_nova):
+        return MENSAGEM_SENHA_CURTA
+    if check_password_hash(piloto.senha_hash, senha_nova):
+        return MENSAGEM_SENHA_IGUAL
+    piloto.senha_hash = generate_password_hash(senha_nova)
+    db.commit()
+    return None
 
 
 def entrar(db, identificacao, senha, momento=None):

@@ -1,6 +1,5 @@
 import heapq
 from collections import defaultdict
-from datetime import timedelta
 from math import floor
 
 from servidor.calculo import RESERVA_HORAS, calcular, distancia_nm
@@ -11,9 +10,6 @@ MOTIVO_COMBUSTIVEL = (
     "Nenhuma sequência de aeródromos publicados deixa todos os trechos dentro "
     "do combustível de planejamento e da reserva de 30 minutos."
 )
-MOTIVO_SOL = "Um trecho chegaria depois do pôr do sol no aeródromo de chegada."
-
-
 def hipotese_reabastecimento(aeronave):
     fontes = getattr(aeronave, "procedencia_tecnica", {})
     fonte = (
@@ -44,7 +40,7 @@ def _linha(conta, nome, unidade):
     return None
 
 
-def _montar_trecho(ordem, origem, destino, conta, sol_estado):
+def _montar_trecho(ordem, origem, destino, conta):
     distancia = _linha(conta, "Distância", "nm")
     proa = _linha(conta, "Proa", "graus")
     tempo = _linha(conta, "Tempo de voo", "h")
@@ -70,24 +66,13 @@ def _montar_trecho(ordem, origem, destino, conta, sol_estado):
         "combustivel_unidade": combustivel["unidade"],
         "combustivel_fonte": combustivel["fonte"],
         "vento_estado": conta.get("vento_estado", "indisponivel"),
-        "por_do_sol_estado": sol_estado,
+        "vento_sentido": conta.get("vento_sentido"),
+        "vento_componente_kt": conta.get("vento_componente_kt"),
+        "vento_fonte": conta.get("vento_fonte"),
+        "por_do_sol_estado": "indisponivel",
         "velocidade_solo_kt": conta["velocidade_solo_kt"],
         "conta": conta,
     }
-
-
-def _sol_bloqueia(sol_de, destino, chegada):
-    if sol_de is None or chegada is None:
-        return False, "indisponivel"
-    info = sol_de(destino, chegada) or {"estado": "indisponivel"}
-    if info.get("estado") != "disponivel":
-        return False, "indisponivel"
-    limite = info.get("por_do_sol")
-    if getattr(limite, "tzinfo", None) is None:
-        return False, "indisponivel"
-    if chegada > limite:
-        return True, "disponivel"
-    return False, "disponivel"
 
 
 def escolher(
@@ -97,8 +82,6 @@ def escolher(
     destino,
     particulares,
     vento_de=None,
-    sol_de=None,
-    hora_partida=None,
     limite_vento_kt=None,
 ):
     frase = hipotese_reabastecimento(aeronave)
@@ -176,7 +159,7 @@ def escolher(
             return False
         return candidato[1:] < atual[1:]
 
-    def buscar(usar_sol):
+    def buscar():
         inicial = (0.0, 0, 0.0, (origem.icao,))
         heap = [(heuristica(origem), *inicial)]
         melhores = {origem.icao: inicial}
@@ -192,13 +175,6 @@ def escolher(
                 break
             if estado != melhores.get(atual):
                 continue
-            if usar_sol and atual != origem.icao and hora_partida is not None:
-                chegada = hora_partida + timedelta(hours=tempo)
-                bloqueia, _estado = _sol_bloqueia(
-                    sol_de, por_icao[atual], chegada
-                )
-                if bloqueia:
-                    continue
             if atual == destino.icao:
                 if melhor_destino is None or estado_melhor(
                     estado, melhor_destino
@@ -227,13 +203,8 @@ def escolher(
                 )
         return melhor_destino
 
-    usar_sol = sol_de is not None and hora_partida is not None
-    achado = buscar(usar_sol)
-    motivo = None
-    if achado is None and usar_sol and buscar(False) is not None:
-        motivo = MOTIVO_SOL
-    elif achado is None:
-        motivo = MOTIVO_COMBUSTIVEL
+    achado = buscar()
+    motivo = MOTIVO_COMBUSTIVEL if achado is None else None
     if achado is None:
         return {
             "rota_estado": "inaceitavel",
@@ -247,18 +218,11 @@ def escolher(
 
     tempo_total, _etapas, distancia_total, caminho = achado
     trechos = []
-    acumulado = 0.0
     for ordem, (saida_icao, chegada_icao) in enumerate(zip(caminho, caminho[1:]), start=1):
         saida = por_icao[saida_icao]
         chegada = por_icao[chegada_icao]
         conta = conta_de(saida, chegada)
-        leg_h = float(conta["tempo_h"])
-        acumulado += leg_h
-        sol_estado = "indisponivel"
-        if hora_partida is not None:
-            instante = hora_partida + timedelta(hours=acumulado)
-            _bloqueia, sol_estado = _sol_bloqueia(sol_de, chegada, instante)
-        trechos.append(_montar_trecho(ordem, saida, chegada, conta, sol_estado))
+        trechos.append(_montar_trecho(ordem, saida, chegada, conta))
     return {
         "rota_estado": "aceitavel",
         "motivo": None,

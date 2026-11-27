@@ -255,14 +255,55 @@ def _cache_rotaer(db):
     }
 
 
+def _instante_solar_utc(texto, data):
+    from datetime import datetime, timezone
+
+    bruto = (texto or "").strip()
+    if bruto.upper().endswith(" UTC"):
+        bruto = bruto[:-4].strip()
+    if len(bruto) == 5 and bruto[2] == ":":
+        try:
+            hora = int(bruto[:2])
+            minuto = int(bruto[3:])
+        except ValueError:
+            return None
+        if hora > 23 or minuto > 59:
+            return None
+        return datetime(data.year, data.month, data.day, hora, minuto, tzinfo=timezone.utc)
+    try:
+        instante = datetime.fromisoformat(
+            bruto[:-1] + "+00:00" if bruto.endswith("Z") else bruto
+        )
+    except ValueError:
+        return None
+    from datetime import timedelta
+
+    if (
+        instante.tzinfo is None
+        or instante.utcoffset() != timedelta(0)
+        or instante.date() != data
+    ):
+        return None
+    return instante.astimezone(timezone.utc)
+
+
 def sol_aerodromo(icao, hora, getter=None):
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
     if os.environ.get("PLANO_CONSULTAR_SOL", "1") == "0":
+        return {"estado": "indisponivel"}
+    if (
+        not isinstance(hora, datetime)
+        or hora.tzinfo is None
+        or hora.utcoffset() != timedelta(0)
+        or not isinstance(icao, str)
+        or not icao.strip()
+    ):
         return {"estado": "indisponivel"}
     chave, senha = _chaves_aisweb()
     if not chave or not senha:
         return {"estado": "indisponivel"}
+    data = hora.date().isoformat()
     obter = getter or requests.get
     try:
         resposta = obter(
@@ -271,8 +312,9 @@ def sol_aerodromo(icao, hora, getter=None):
                 "apiKey": chave,
                 "apiPass": senha,
                 "area": "sol",
-                "icao": icao,
-                "dt": hora.date().isoformat(),
+                "icaoCode": icao,
+                "dt_i": data,
+                "dt_f": data,
             },
             timeout=8,
         )
@@ -280,17 +322,26 @@ def sol_aerodromo(icao, hora, getter=None):
         raiz = ElementTree.fromstring(resposta.text or "")
     except Exception:
         return {"estado": "indisponivel"}
-    for elemento in raiz.iter():
-        if _tag(elemento) not in {"sunset", "por_do_sol", "sunset_utc"}:
+    nascer = None
+    por = None
+    for dia in raiz.iter():
+        if _tag(dia) != "day":
             continue
-        texto = (elemento.text or "").strip()
-        if not texto:
+        campos = {
+            _tag(filho): (filho.text or "").strip()
+            for filho in list(dia)
+        }
+        aero = (campos.get("aero") or "").upper()
+        if campos.get("date") != data or (aero and aero != icao.upper()):
             continue
-        try:
-            instante = datetime.fromisoformat(texto)
-        except ValueError:
-            continue
-        if instante.tzinfo is None:
-            continue
-        return {"estado": "disponivel", "por_do_sol": instante, "fonte": "AISWEB sol"}
-    return {"estado": "indisponivel"}
+        nascer = _instante_solar_utc(campos.get("sunrise"), hora.date())
+        por = _instante_solar_utc(campos.get("sunset"), hora.date())
+        break
+    if nascer is None or por is None or nascer >= por:
+        return {"estado": "indisponivel"}
+    return {
+        "estado": "disponivel",
+        "nascer_do_sol": nascer,
+        "por_do_sol": por,
+        "fonte": "AISWEB sol",
+    }

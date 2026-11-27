@@ -268,5 +268,8 @@ class Trecho(Base):
     combustivel_unidade: Mapped[str] = mapped_column(String(20), nullable=False)
     combustivel_fonte: Mapped[str] = mapped_column(Text, nullable=False)
     vento_estado: Mapped[str] = mapped_column(String(20), nullable=False)
+    vento_sentido: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    vento_componente_kt: Mapped[float | None] = mapped_column(Float, nullable=True)
+    vento_fonte: Mapped[str | None] = mapped_column(String(80), nullable=True)
     por_do_sol_estado: Mapped[str] = mapped_column(String(20), nullable=False)
     velocidade_solo_kt: Mapped[float] = mapped_column(Float, nullable=False)

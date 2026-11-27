@@ -5,7 +5,7 @@ from tests.conftest import JSON, cadastrar, plano_valido
 
 PLANTA = "/static/casca/blueprint-airport-runway.jpg"
 EMBLEMA = 'alt="Plano de voo"'
-MENU = ("NOVO VOO", "VOOS PLANEJADOS", "PERFIL")
+MENU = ("NOVO VOO", "VOOS PLANEJADOS", "Ana Pilota")
 
 
 def _pagina(cliente, caminho):
@@ -159,6 +159,7 @@ def test_menu_resumo_e_impressao(cliente):
     )
     for item in MENU:
         assert item in menu.group(2)
+    assert "PERFIL" not in menu.group(2)
     assert 'aria-label="Sair"' in menu.group(2)
     assert "SAIR" not in menu.group(2)
     assert "<summary " in cabecalho.group(1)

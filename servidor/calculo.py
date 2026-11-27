@@ -44,6 +44,70 @@ def distancia_nm(lat1, lon1, lat2, lon2):
     return distancia_km(lat1, lon1, lat2, lon2) * NM_POR_KM
 
 
+def _cargas(particulares):
+    bruto = dict(particulares or {})
+    if "peso_pessoas_kg" not in bruto:
+        piloto = bruto.get("peso_piloto_kg")
+        passageiro = bruto.get("peso_passageiro_kg")
+        if piloto not in (None, "") or passageiro not in (None, ""):
+            bruto["peso_pessoas_kg"] = float(piloto or 0) + float(passageiro or 0)
+    return bruto.get("peso_pessoas_kg"), bruto.get("peso_bagagem_kg")
+
+
+def grandezas_do_trecho(trecho, aeronave, particulares):
+    """Valores já calculados que a ficha do trecho ainda não mostrava."""
+    saida = {
+        "distancia_km": None,
+        "velocidade_solo_kt": None,
+        "velocidade_planejamento": None,
+        "velocidade_unidade": None,
+        "combustivel_voo": None,
+        "reserva": None,
+        "unidade_combustivel": None,
+        "peso_combustivel_kg": None,
+        "peso_aeronave_kg": None,
+    }
+    if trecho is None:
+        return saida
+    if trecho.distancia_unidade == "nm" and trecho.distancia_valor is not None:
+        saida["distancia_km"] = round(float(trecho.distancia_valor) / NM_POR_KM, 1)
+    if trecho.velocidade_solo_kt is not None:
+        saida["velocidade_solo_kt"] = trecho.velocidade_solo_kt
+    if aeronave is None:
+        return saida
+    saida["velocidade_planejamento"] = aeronave.velocidade_valor
+    saida["velocidade_unidade"] = aeronave.velocidade_unidade
+    unidade = aeronave.combustivel_unidade or trecho.combustivel_unidade
+    saida["unidade_combustivel"] = unidade
+    if aeronave.consumo_valor is not None:
+        reserva = round(RESERVA_HORAS * float(aeronave.consumo_valor), 2)
+        saida["reserva"] = reserva
+        if trecho.combustivel_valor is not None:
+            voo = round(float(trecho.combustivel_valor) - reserva, 2)
+            if voo >= 0:
+                saida["combustivel_voo"] = voo
+    if (
+        aeronave.combustivel_valor is not None
+        and (aeronave.combustivel_unidade or "").lower().startswith("gal")
+    ):
+        peso_comb = round(float(aeronave.combustivel_valor) * KG_POR_GAL, 1)
+        saida["peso_combustivel_kg"] = peso_comb
+        pessoas, bagagem = _cargas(particulares)
+        if (
+            aeronave.peso_vazio_kg is not None
+            and pessoas is not None
+            and bagagem is not None
+        ):
+            saida["peso_aeronave_kg"] = round(
+                float(aeronave.peso_vazio_kg)
+                + float(pessoas)
+                + float(bagagem)
+                + peso_comb,
+                1,
+            )
+    return saida
+
+
 def avaliar_carga(aeronave, particulares):
     peso_pessoas = float(particulares["peso_pessoas_kg"])
     peso_bagagem = float(particulares["peso_bagagem_kg"])
@@ -66,6 +130,19 @@ def avaliar_carga(aeronave, particulares):
             f"Bagagem {peso_bagagem:.1f} kg acima do máximo {aeronave.bagagem_max_kg:.1f} kg"
         )
     return alertas, peso_total, peso_combustivel
+
+
+def componente_vento(proa_graus_valor, direcao_de_graus, velocidade_kt):
+    """Componente ao longo da proa. Positivo é vento de proa."""
+    alongamento = float(velocidade_kt) * cos(
+        radians(float(direcao_de_graus) - float(proa_graus_valor))
+    )
+    sentido = "proa" if alongamento >= 0 else "cauda"
+    return {
+        "sentido": sentido,
+        "componente_kt": int(round(abs(alongamento))),
+        "alongamento_kt": alongamento,
+    }
 
 
 def proa_graus(lat1, lon1, lat2, lon2):
@@ -97,19 +174,21 @@ def calcular(aeronave, origem, destino, particulares, vento=None):
         )
     vento_aplicado = False
     efeito = "vento não aplicado"
+    vento_sentido = None
+    vento_componente_kt = None
+    vento_fonte = None
     gs = tas
     if vento and vento.get("estado") == "disponivel":
-        vem_de = float(vento["direcao_de_graus"])
-        velocidade = float(vento["velocidade_kt"])
-        proa_rad = radians(proa)
-        vento_rad = radians(vem_de)
-        componente = velocidade * cos(vento_rad - proa_rad)
+        conta_vento = componente_vento(
+            proa, vento["direcao_de_graus"], vento["velocidade_kt"]
+        )
+        componente = conta_vento["alongamento_kt"]
         gs = tas - componente
         vento_aplicado = True
-        if componente >= 0:
-            efeito = f"vento de proa {componente:.0f} kt"
-        else:
-            efeito = f"vento de cauda {abs(componente):.0f} kt"
+        vento_sentido = conta_vento["sentido"]
+        vento_componente_kt = conta_vento["componente_kt"]
+        vento_fonte = vento.get("fonte")
+        efeito = f"vento de {vento_sentido} {vento_componente_kt} kt"
         if gs <= 0:
             return {"erro": "vento de proa maior que a velocidade de planejamento", "grava": False}
 
@@ -191,4 +270,7 @@ def calcular(aeronave, origem, destino, particulares, vento=None):
         "distancia_nm": nm,
         "cabe_reserva": total <= float(aeronave.combustivel_valor) + 1e-6,
         "vento_estado": "disponivel" if vento_aplicado else "indisponivel",
+        "vento_sentido": vento_sentido,
+        "vento_componente_kt": vento_componente_kt,
+        "vento_fonte": vento_fonte,
     }

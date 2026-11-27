@@ -1,5 +1,7 @@
 import os
 from datetime import datetime, timedelta, timezone
+from math import isfinite
+from urllib.parse import urlparse
 
 from flask import Flask, flash, g, jsonify, redirect, render_template, request, session, url_for
 
@@ -8,9 +10,11 @@ from servidor import openaip
 from servidor import rainviewer
 from servidor import tempo
 from servidor.ambiente import resolver_ambiente
+from servidor.imagens_aeronave import imagem_da_aeronave
 from servidor.auth import (
     MENSAGEM_RECUSA,
     MENSAGEM_NOME_EXIBICAO,
+    alterar_senha,
     cadastrar,
     entrar,
     normalizar_nome_exibicao,
@@ -25,20 +29,25 @@ from servidor.catalogo import (
     procedencia_aeronave,
 )
 from servidor.modelos import Aeronave, Aerodromo, Sessao, agora, configurar
+from servidor.planos_consulta import construir_fontes_relatorio, linha_fonte_relatorio
 from servidor.pdf_plano import (
     gerar_pdf,
     ler_orientacao,
     rotulo_lido,
 )
-from servidor.tempo import campos_metar, linhas_boletim
+from servidor.tempo import campos_metar, campos_taf, legenda_periodo_taf, linhas_boletim
 from servidor.planos import (
     apagar,
+    completar_programacao_solar,
     do_piloto,
+    coordenada_graus,
     hora_ja_passou,
+    horario_rota,
     listar,
     marcar_item,
     montar,
     para_json,
+    recalcular,
     valores_do_plano,
 )
 
@@ -50,6 +59,29 @@ def _visto(valor):
     if hora.tzinfo is None:
         hora = hora.replace(tzinfo=timezone.utc)
     return hora
+
+
+def data_br(valor):
+    try:
+        return datetime.strptime(valor, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except (TypeError, ValueError):
+        return "Data indisponível"
+
+
+def hora_utc_legivel(valor, com_fuso=True):
+    if not isinstance(valor, str) or not valor.strip():
+        return "Indisponível"
+    texto = valor.strip()
+    if texto.endswith("Z"):
+        texto = texto[:-1] + "+00:00"
+    try:
+        instante = datetime.fromisoformat(texto)
+    except ValueError:
+        return "Indisponível"
+    if instante.tzinfo is None:
+        return "Indisponível"
+    texto = instante.astimezone(timezone.utc).strftime("%d/%m/%Y %H:%M")
+    return f"{texto} UTC" if com_fuso else texto
 
 
 def _boletins_por_aerodromo(plano, meteorologia_atual):
@@ -82,6 +114,7 @@ def _boletins_por_aerodromo(plano, meteorologia_atual):
                 "metar": metar,
                 "campos_metar": campos_metar(metar),
                 "taf": taf or {"estado": "indisponivel"},
+                "campos_taf": campos_taf(taf),
             }
     return boletins
 
@@ -96,6 +129,12 @@ def criar_app():
     app.config["SESSION_COOKIE_SECURE"] = os.environ.get("COOKIE_SECURE", "0") == "1"
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
     app.add_template_global(rotulo_lido)
+    app.add_template_global(data_br)
+    app.add_template_global(hora_utc_legivel)
+    app.add_template_global(legenda_periodo_taf)
+    app.add_template_global(horario_rota)
+    app.add_template_global(coordenada_graus)
+    app.add_template_global(imagem_da_aeronave)
     configurar(ambiente.database_url)
 
     @app.before_request
@@ -124,6 +163,10 @@ def criar_app():
         session["visto_em"] = agora().isoformat()
         session.permanent = True
         return piloto
+
+    @app.context_processor
+    def injetar_piloto_menu():
+        return {"piloto_menu": piloto_logado()}
 
     def entrar_sessao(piloto):
         session.clear()
@@ -237,6 +280,23 @@ def criar_app():
             return render_template("perfil.html", piloto=piloto)
 
         dados = request.get_json(silent=True) or request.form
+        if dados.get("acao") == "senha" or "senha_nova" in dados:
+            erro = alterar_senha(
+                g.db,
+                piloto,
+                dados.get("senha_atual"),
+                dados.get("senha_nova"),
+                dados.get("senha_confirmacao"),
+            )
+            if erro:
+                if quer_json():
+                    return jsonify({"mensagem": erro}), 400
+                return render_template("perfil.html", piloto=piloto, mensagem=erro), 400
+            if quer_json():
+                return jsonify({"ok": True})
+            flash("Senha alterada.", "sucesso")
+            return redirect(url_for("painel"))
+
         nome_exibicao = normalizar_nome_exibicao(dados.get("nome_exibicao"))
         if nome_exibicao is None:
             if quer_json():
@@ -255,7 +315,7 @@ def criar_app():
         if quer_json():
             return jsonify({"ok": True, "nome_exibicao": piloto.nome_exibicao})
         flash("Nome de exibição salvo.", "sucesso")
-        return redirect(url_for("perfil"))
+        return redirect(url_for("painel"))
 
     @app.route("/entrar", methods=["GET", "POST"])
     def entrar_pagina():
@@ -345,6 +405,26 @@ def criar_app():
             return jsonify(para_json(atualizado))
         return redirect(url_for("ver_plano", plano_id=atualizado.id))
 
+    @app.post("/planos/<int:plano_id>/atualizar")
+    def atualizar_plano(plano_id):
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        plano = do_piloto(g.db, piloto.id, plano_id)
+        if plano is None:
+            if quer_json():
+                return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
+            return render_template("recusa.html"), 404
+        atualizado, erro = recalcular(g.db, piloto, plano)
+        if erro:
+            if quer_json():
+                return jsonify({"mensagem": erro}), 400
+            flash(erro, "erro")
+            return redirect(url_for("ver_plano", plano_id=plano.id))
+        if quer_json():
+            return jsonify(para_json(atualizado))
+        return redirect(url_for("ver_plano", plano_id=atualizado.id))
+
     @app.route("/planos/<int:plano_id>", methods=["GET", "PUT"])
     def ver_plano(plano_id):
         piloto, resposta = exigir()
@@ -371,6 +451,7 @@ def criar_app():
             if quer_json():
                 return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
             return render_template("recusa.html"), 404
+        completar_programacao_solar(g.db, plano)
         aeronave = g.db.get(Aeronave, plano.aeronave_id)
         pontos_por_trecho = []
         aerodromos_rota = {}
@@ -423,7 +504,6 @@ def criar_app():
                     if aerodromo is not None
                 ],
             )
-            radar_atual = tempo.radar(origem, destino)
         else:
             meteorologia_atual = {
                 "estado": "indisponivel",
@@ -431,26 +511,232 @@ def criar_app():
                 "destino": {"estado": "indisponivel"},
                 "aerodromos": {},
             }
-            radar_atual = {
-                "estado": "indisponivel",
-                "motivo": "Coordenadas da rota indisponíveis.",
-            }
+        radar_atual = {"estado": "indisponivel"}
         if quer_json():
             dados = para_json(plano)
             dados["meteorologia"] = meteorologia_atual
             dados["radar"] = radar_atual
             return jsonify(dados)
+        from servidor.calculo import grandezas_do_trecho
+
+        grandezas_por_trecho = {
+            trecho.ordem: grandezas_do_trecho(
+                trecho, aeronave, plano.dados_particulares
+            )
+            for trecho in plano.trechos
+        }
         return render_template(
             "plano.html",
             plano=plano,
             aeronave=aeronave,
+            grandezas_por_trecho=grandezas_por_trecho,
             aerodromos_rota=aerodromos_rota,
             pontos_por_trecho=pontos_por_trecho,
             boletins=linhas_boletim(meteorologia_atual),
             boletins_por_aerodromo=_boletins_por_aerodromo(plano, meteorologia_atual),
             meteorologia=meteorologia_atual,
             radar=radar_atual,
-            openaip_configurada=bool(os.environ.get("OPENAIP_API_KEY", "").strip()),
+            fontes_relatorio=construir_fontes_relatorio(
+                plano, aerodromos_rota, meteorologia_atual
+            ),
+        )
+
+    @app.get("/planos/<int:plano_id>/camadas/radar")
+    def camada_radar(plano_id):
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        exclusoes = request.args.getlist("exclude")
+        if len(exclusoes) > 1 or (
+            exclusoes and exclusoes[0] not in {"REDEMET", "RainViewer"}
+        ):
+            return jsonify({"estado": "indisponivel"}), 400
+        excluir = exclusoes[0] if exclusoes else None
+        plano = do_piloto(g.db, piloto.id, plano_id)
+        if plano is None:
+            return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
+
+        origem = g.db.get(Aerodromo, plano.origem_icao)
+        destino = g.db.get(Aerodromo, plano.destino_icao)
+        if excluir != "RainViewer":
+            try:
+                frame = rainviewer.buscar_frame()
+            except rainviewer.RainViewerIndisponivel:
+                frame = None
+            if (
+                isinstance(frame, dict)
+                and isinstance(frame.get("frame"), str)
+                and isinstance(frame.get("hora"), int)
+                and not isinstance(frame.get("hora"), bool)
+                and frame["hora"] > 0
+                and isinstance(frame.get("max_zoom"), int)
+            ):
+                radar_url = url_for(
+                    "tile_rainviewer",
+                    plano_id=plano_id,
+                    frame=frame["frame"],
+                    z=0,
+                    x=0,
+                    y=0,
+                ).replace("/0/0/0.png", "/{z}/{x}/{y}.png")
+                cobertura_url = url_for(
+                    "cobertura_rainviewer",
+                    plano_id=plano_id,
+                    z=0,
+                    x=0,
+                    y=0,
+                ).replace("/0/0/0.png", "/{z}/{x}/{y}.png")
+                return jsonify(
+                    {
+                        "estado": "disponivel",
+                        "provedor": "RainViewer",
+                        "fonte": "RainViewer — radar não oficial",
+                        "hora_frame": datetime.fromtimestamp(
+                            frame["hora"], timezone.utc
+                        ).isoformat(),
+                        "max_zoom": frame["max_zoom"],
+                        "radar_url": radar_url,
+                        "cobertura_url": cobertura_url,
+                        "atribuicao": {
+                            "texto": "Weather data by RainViewer",
+                            "url": "https://www.rainviewer.com/",
+                        },
+                        "aviso_cobertura": (
+                            "A máscara de cobertura pode estar desatualizada. "
+                            "Área sem cobertura não significa ausência de chuva."
+                        ),
+                        "fonte_relatorio": linha_fonte_relatorio(
+                            "Radar de chuva",
+                            "RainViewer — radar não oficial",
+                            "RainViewer",
+                            publicador="RainViewer",
+                            referencia="https://www.rainviewer.com/",
+                            data=datetime.fromtimestamp(
+                                frame["hora"], timezone.utc
+                            ).isoformat(),
+                            aplicabilidade="mapa do plano",
+                        ),
+                    }
+                )
+
+        if excluir != "REDEMET" and origem is not None and destino is not None:
+            radar = tempo.radar(origem, destino)
+            url = radar.get("url") if isinstance(radar, dict) else None
+            parsed_url = urlparse(url or "")
+            hora = radar.get("hora") if isinstance(radar, dict) else None
+            limites = (
+                radar.get("lat_min"),
+                radar.get("lat_max"),
+                radar.get("lon_min"),
+                radar.get("lon_max"),
+            ) if isinstance(radar, dict) else ()
+            limites_validos = (
+                len(limites) == 4
+                and all(
+                    isinstance(valor, (int, float))
+                    and not isinstance(valor, bool)
+                    and isfinite(valor)
+                    for valor in limites
+                )
+                and limites[0] < limites[1]
+                and limites[2] < limites[3]
+            )
+            if (
+                isinstance(radar, dict)
+                and radar.get("estado") == "disponivel"
+                and parsed_url.scheme == "https"
+                and parsed_url.netloc
+                and isinstance(hora, str)
+                and hora.strip()
+                and limites_validos
+            ):
+                return jsonify(
+                    {
+                        "estado": "disponivel",
+                        "provedor": "REDEMET",
+                        "fonte": radar.get("fonte") or "REDEMET MaxCappi",
+                        "hora_frame": hora,
+                        "radar_url": url,
+                        "bounds": {
+                            "lat_min": limites[0],
+                            "lat_max": limites[1],
+                            "lon_min": limites[2],
+                            "lon_max": limites[3],
+                        },
+                        "atribuicao": None,
+                        "aviso_cobertura": None,
+                        "fonte_relatorio": linha_fonte_relatorio(
+                            "Radar de chuva",
+                            radar.get("fonte") or "REDEMET MaxCappi",
+                            radar.get("fonte") or "REDEMET MaxCappi",
+                            publicador="REDEMET",
+                            referencia=url,
+                            data=hora,
+                            aplicabilidade="mapa do plano",
+                        ),
+                    }
+                )
+
+        return jsonify({"estado": "indisponivel"})
+
+    @app.get("/planos/<int:plano_id>/camadas/satelite")
+    def camada_satelite(plano_id):
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        if do_piloto(g.db, piloto.id, plano_id) is None:
+            return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
+
+        quadro = tempo.satelite()
+        if not isinstance(quadro, dict) or quadro.get("estado") != "disponivel":
+            return jsonify({"estado": "indisponivel"})
+
+        url = quadro.get("url")
+        hora = quadro.get("hora")
+        parsed_url = urlparse(url) if isinstance(url, str) else None
+        limites = (
+            quadro.get("lat_min"),
+            quadro.get("lat_max"),
+            quadro.get("lon_min"),
+            quadro.get("lon_max"),
+        )
+        limites_validos = (
+            all(
+                isinstance(valor, (int, float))
+                and not isinstance(valor, bool)
+                and isfinite(valor)
+                for valor in limites
+            )
+            and -90 <= limites[0] < limites[1] <= 90
+            and -180 <= limites[2] < limites[3] <= 180
+        )
+        if (
+            parsed_url is None
+            or parsed_url.scheme != "https"
+            or parsed_url.netloc != "estatico-redemet.decea.mil.br"
+            or not parsed_url.path.lower().endswith(".png")
+            or parsed_url.query
+            or parsed_url.fragment
+            or not isinstance(hora, str)
+            or not hora.strip()
+            or not limites_validos
+        ):
+            return jsonify({"estado": "indisponivel"})
+
+        return jsonify(
+            {
+                "estado": "disponivel",
+                "provedor": "REDEMET",
+                "fonte": quadro.get("fonte") or "REDEMET Satélite realçada",
+                "hora_frame": hora,
+                "imagem_url": url,
+                "bounds": {
+                    "lat_min": limites[0],
+                    "lat_max": limites[1],
+                    "lon_min": limites[2],
+                    "lon_max": limites[3],
+                },
+            }
         )
 
     @app.get("/planos/<int:plano_id>/camadas/openaip/<z>/<x>/<y>.png")
@@ -567,6 +853,17 @@ def criar_app():
             resposta.headers["Cache-Control"] = cache_control
         return resposta
 
+    @app.post("/planos/<int:plano_id>/apagar")
+    def apagar_plano_formulario(plano_id):
+        piloto, resposta = exigir()
+        if piloto is None:
+            return resposta
+        confirmar = request.form.get("confirmar") in ("on", "true", "1")
+        _ok, motivo = apagar(g.db, piloto, plano_id, confirmar)
+        if motivo == "ausente":
+            return render_template("recusa.html"), 404
+        return redirect(url_for("painel"))
+
     @app.delete("/planos/<int:plano_id>")
     def apagar_plano(plano_id):
         piloto, resposta = exigir()
@@ -603,8 +900,22 @@ def criar_app():
         plano = do_piloto(g.db, piloto.id, plano_id)
         if plano is None:
             return jsonify({"mensagem": MENSAGEM_RECUSA}), 404
+        completar_programacao_solar(g.db, plano)
+        aerodromos_rota = {
+            icao: g.db.get(Aerodromo, icao)
+            for trecho in plano.trechos
+            for icao in (trecho.origem_icao, trecho.destino_icao)
+        }
+        fontes_relatorio = construir_fontes_relatorio(
+            plano, aerodromos_rota, plano.meteorologia
+        )
         return (
-            gerar_pdf(plano, piloto.nome_exibicao),
+            gerar_pdf(
+                plano,
+                piloto.nome_exibicao,
+                aerodromos_rota,
+                fontes_relatorio,
+            ),
             200,
             {"Content-Type": "application/pdf"},
         )

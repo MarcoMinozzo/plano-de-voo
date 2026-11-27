@@ -115,10 +115,12 @@ def test_edicao_html_de_perfil_salva_nome_e_redireciona(cliente):
         follow_redirects=True,
     )
 
+    html = resposta.get_data(as_text=True)
     assert resposta.status_code == 200
-    assert "Ana Pilota" in resposta.get_data(as_text=True)
-    assert "Ana Silva" not in resposta.get_data(as_text=True)
-    assert "Nome de exibição salvo." in resposta.get_data(as_text=True)
+    assert "Seus planos" in html
+    assert "Ana Pilota" in html
+    assert "Ana Silva" not in html
+    assert "Nome de exibição salvo." in html
 
 
 def test_edicao_html_invalida_nao_confirma_sucesso(cliente):
@@ -134,6 +136,86 @@ def test_edicao_html_invalida_nao_confirma_sucesso(cliente):
     assert MENSAGEM_NOME_EXIBICAO in html
     assert "Nome de exibição salvo." not in html
     assert "Ana Silva" in html
+
+
+def test_alterar_senha_exige_senha_atual_e_confirmacao_igual(cliente):
+    cadastrar(cliente)
+
+    curta = cliente.post(
+        "/perfil",
+        data={
+            "acao": "senha",
+            "senha_atual": "segredo12",
+            "senha_nova": "curta",
+            "senha_confirmacao": "curta",
+        },
+    )
+    assert curta.status_code == 400
+    assert "8 caracteres" in curta.get_data(as_text=True)
+
+    diferente = cliente.post(
+        "/perfil",
+        data={
+            "acao": "senha",
+            "senha_atual": "segredo12",
+            "senha_nova": "segredo99",
+            "senha_confirmacao": "segredo98",
+        },
+    )
+    assert diferente.status_code == 400
+    assert "mesma senha" in diferente.get_data(as_text=True)
+
+    atual = cliente.post(
+        "/perfil",
+        json={
+            "acao": "senha",
+            "senha_atual": "errada12",
+            "senha_nova": "segredo99",
+            "senha_confirmacao": "segredo99",
+        },
+        headers=JSON,
+    )
+    assert atual.status_code == 400
+    assert "senha atual" in atual.get_json()["mensagem"]
+
+    igual = cliente.post(
+        "/perfil",
+        json={
+            "senha_nova": "segredo12",
+            "senha_confirmacao": "segredo12",
+            "senha_atual": "segredo12",
+        },
+        headers=JSON,
+    )
+    assert igual.status_code == 400
+
+    salva = cliente.post(
+        "/perfil",
+        data={
+            "acao": "senha",
+            "senha_atual": "segredo12",
+            "senha_nova": "segredo99",
+            "senha_confirmacao": "segredo99",
+        },
+        follow_redirects=True,
+    )
+    html = salva.get_data(as_text=True)
+    assert salva.status_code == 200
+    assert "Seus planos" in html
+    assert "Senha alterada." in html
+    assert "segredo99" not in html
+
+    cliente.post("/sair")
+    recusa = cliente.post(
+        "/entrar",
+        data={"identificacao": "ana", "senha": "segredo12"},
+    )
+    assert recusa.status_code == 401
+    entra = cliente.post(
+        "/entrar",
+        data={"identificacao": "ana", "senha": "segredo99"},
+    )
+    assert entra.status_code == 302
 
 
 def test_entrar_html_autentica_e_abre_painel(cliente):

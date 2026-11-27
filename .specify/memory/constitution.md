@@ -1,13 +1,3 @@
-<!--
-Sync Impact Report
-- Version change: 6.1.0 → 7.0.0
-- Modified principles: IV. Unidades e fonte explícitas (exceção delimitada para detalhes do plano)
-- Modified sections: Perfis sintéticos didáticos (rótulo detalhado pode ser omitido na página do plano)
-- Added sections: none
-- Removed sections: none
-- Follow-up TODOs: especificar e implementar a limpeza visual da página do plano
--->
-
 # Plano de voo Constitution
 
 ## Core Principles
@@ -90,17 +80,21 @@ licença, a atribuição, a chave ou a disponibilidade não puderem ser
 confirmadas, a camada MUST ficar indisponível e informar o motivo; não pode
 haver fallback silencioso.
 
-O radar oficial MUST continuar vindo da REDEMET e MUST permanecer uma camada
-independente. RainViewer MAY ser oferecido como uma camada suplementar
-separada, não oficial e sem chave, somente para fins educacionais permitidos
-pelos termos vigentes do serviço. Essa camada MUST identificar RainViewer
-como fonte, exibir crédito visível com link, apresentar o horário fornecido
-pela fonte e indicar indisponibilidade quando faltarem cobertura, tiles ou
-dados verificáveis. Ela MUST NOT substituir automaticamente a REDEMET nem
-ser apresentada como radar oficial. A cobertura e disponibilidade podem
-mudar e não têm garantia; se os termos vigentes ou as condições de uso não
-puderem ser confirmados, a camada MUST ficar indisponível. A base de ruas
-MUST ser identificada como tal.
+A imagem de chuva do mapa MUST usar RainViewer quando o frame e os tiles
+estiverem disponíveis, porque a composição reúne várias redes e cobre mais
+área do que o quadro único da REDEMET. RainViewer permanece fonte não oficial,
+somente para fins educacionais permitidos pelos termos vigentes do serviço, e
+MUST exibir crédito com link, horário fornecido pela fonte e aviso de
+cobertura. MUST NOT ser apresentada como radar oficial ou como REDEMET. A
+imagem de chuva da REDEMET MAY ser usada somente quando RainViewer estiver
+indisponível e a REDEMET fornecer dados válidos para o trecho. A interface MAY
+oferecer um único controle de radar e escolher a fonte elegível internamente,
+mas MUST identificar visivelmente a fonte ativa. Se nenhuma fonte elegível
+estiver disponível, o radar MUST ficar indisponível sem inventar dados. A
+cobertura e disponibilidade podem mudar e não têm garantia; se os termos
+vigentes ou as condições de uso do RainViewer não puderem ser confirmados,
+essa imagem MUST ficar indisponível. A imagem de satélite continua vindo da
+REDEMET. A base de ruas MUST ser identificada como tal.
 
 ## Restrições adicionais
 
@@ -207,10 +201,13 @@ MUST ficar no servidor.
 
 Cada plano pertence a um piloto. A consulta de plano MUST filtrar pelo piloto
 da sessão. Meteorologia de aeródromo vem do Aviation Weather Center.
-Radar oficial vem da REDEMET e carta visual oficial vigente vem do AISWEB.
-Sem a chave correspondente, aquele item fica indisponível. RainViewer só
-pode aparecer como camada suplementar de radar não oficial, separada da
-REDEMET e sujeita aos termos definidos no princípio V. OpenAIP só pode
+A imagem de chuva do mapa prioriza RainViewer e MAY usar a imagem da REDEMET
+somente quando RainViewer estiver indisponível, sob as condições do princípio
+V. A imagem de satélite e o vento de área continuam na REDEMET. A carta visual
+oficial vigente vem do AISWEB.
+Sem a chave correspondente, o item da REDEMET fica indisponível. RainViewer
+não usa essa chave e só pode aparecer como imagem de chuva não oficial,
+sujeita aos termos definidos no princípio V. OpenAIP só pode
 aparecer como camada aeronáutica comunitária suplementar, nos termos
 definidos no princípio V, nunca rotulada como WAC. Vento de rota vem do
 produto oficial de vento de área da REDEMET; se o produto não cobrir a rota,
@@ -224,8 +221,8 @@ o perfil fica indisponível.
 | Acesso e migração | SQLAlchemy 2, psycopg 3, Alembic |
 | Acesso do piloto | Hash de senha do Werkzeug e sessão Flask, sem segundo fator |
 | Meteorologia de aeródromo | requests 2.31.0, Aviation Weather Center |
-| Radar oficial e vento de área | REDEMET, com chave fora do repositório |
-| Radar suplementar | RainViewer, sem chave na API pública atual; uso educacional, crédito com link, não oficial e sem garantia de cobertura ou disponibilidade |
+| Imagem de chuva no mapa | RainViewer, sem chave na API pública atual; crédito vinculado, horário e identificação não oficial |
+| Reserva da imagem de chuva, satélite e vento de área | REDEMET, com chave fora do repositório; a imagem de chuva da REDEMET só entra se RainViewer estiver indisponível |
 | Carta visual | AISWEB, carta WAC vigente, com chave fora do repositório |
 | Camada aeronáutica suplementar | OpenAIP, não oficial, CC BY-NC 4.0, chave fora do repositório e atribuição visível |
 | PDF | reportlab 4.0.7 |
@@ -251,8 +248,10 @@ O caminho de cada mudança é este, um passo por vez:
 5. `/speckit-implement` executa as tarefas.
 6. `/speckit-converge` confere o que ainda falta.
 
-A spec ativa está em `specs/002-rota-com-escalas/`. A spec anterior,
-`specs/001-planejar-voo-visual/`, descreve o plano direto já construído. Templates ficam em
+A spec ativa é sempre o diretório indicado por `.specify/feature.json`
+(atualmente, `specs/028-plano-diurno-tabular/`). `specs/002-rota-com-escalas/`
+cobre a rota com escalas; `specs/001-planejar-voo-visual/` descreve o plano
+direto já construído. Templates ficam em
 `.specify/templates/`. Scripts ficam em `.specify/scripts/bash/`. Skills
 ficam em `.cursor/skills/`. Não editar esses arquivos para descrever uma
 feature. Comportamento novo MUST abrir outra pasta em `specs/` por
@@ -276,7 +275,9 @@ vigente, contagem RAB somente em `CD_INTERDICAO=N`, rota e escalas calculadas
 no servidor, e nenhuma dependência nova sem justificativa no plano.
 Revisões de mapa MUST ainda verificar que OpenAIP esteja identificado como
 fonte suplementar não oficial, com a atribuição e as condições de licença
-cumpridas, e que a indisponibilidade da carta oficial AISWEB não seja escondida
-por substituição automática.
+cumpridas; que a fonte efetivamente usada pelo radar esteja identificada e
+atribuída; e que uma alternativa RainViewer cumpra os limites do princípio V.
+Uma indisponibilidade da carta AISWEB MUST NOT ser apresentada como uma carta
+oficial disponível por meio de substituição automática.
 
-**Version**: 7.0.0 | **Ratified**: 2026-10-21 | **Last Amended**: 2026-11-26
+**Version**: 9.0.0 | **Ratified**: 2026-10-21 | **Last Amended**: 2026-11-27

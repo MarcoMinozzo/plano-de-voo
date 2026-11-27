@@ -73,7 +73,7 @@ def test_download_rotaer_usa_endpoint_aisweb_confirmado(monkeypatch):
     assert registros
 
 
-def test_por_do_sol_usa_endpoint_aisweb_confirmado(monkeypatch):
+def test_nascer_e_por_do_sol_usa_endpoint_aisweb_confirmado(monkeypatch):
     monkeypatch.setenv("AISWEB_API_KEY", "teste")
     monkeypatch.setenv("AISWEB_API_PASS", "teste")
     monkeypatch.setenv("PLANO_CONSULTAR_SOL", "1")
@@ -82,7 +82,10 @@ def test_por_do_sol_usa_endpoint_aisweb_confirmado(monkeypatch):
     def getter(url, params=None, timeout=None):
         chamadas.append((url, params, timeout))
         return SimpleNamespace(
-            text="<aisweb><sunset>2026-12-01T22:30:00+00:00</sunset></aisweb>",
+            text=(
+                "<aisweb><day><date>2026-12-01</date><aero>SBJD</aero>"
+                "<sunrise>09:30</sunrise><sunset>22:30</sunset></day></aisweb>"
+            ),
             raise_for_status=lambda: None,
         )
 
@@ -94,13 +97,58 @@ def test_por_do_sol_usa_endpoint_aisweb_confirmado(monkeypatch):
 
     assert resultado["estado"] == "disponivel"
     assert resultado["fonte"] == "AISWEB sol"
+    assert resultado["nascer_do_sol"] == datetime(
+        2026, 12, 1, 9, 30, tzinfo=timezone.utc
+    )
+    assert resultado["por_do_sol"] == datetime(
+        2026, 12, 1, 22, 30, tzinfo=timezone.utc
+    )
     assert chamadas[0][0] == "https://api.decea.mil.br/aisweb/"
     assert chamadas[0][1]["area"] == "sol"
-    assert chamadas[0][1]["icao"] == "SBJD"
-    assert chamadas[0][1]["dt"] == "2026-12-01"
+    assert chamadas[0][1]["icaoCode"] == "SBJD"
+    assert chamadas[0][1]["dt_i"] == "2026-12-01"
+    assert chamadas[0][1]["dt_f"] == "2026-12-01"
     assert chamadas[0][1]["apiKey"] == "teste"
     assert chamadas[0][1]["apiPass"] == "teste"
     assert chamadas[0][2] == 8
+
+
+@pytest.mark.parametrize(
+    "xml",
+    (
+        "<aisweb><sunset>2026-12-01T22:30:00+00:00</sunset></aisweb>",
+        "<aisweb><sunrise>2026-12-01T09:30:00+00:00</sunrise></aisweb>",
+        (
+            "<aisweb><sunrise>horário inválido</sunrise>"
+            "<sunset>2026-12-01T22:30:00+00:00</sunset></aisweb>"
+        ),
+        (
+            "<aisweb><sunrise>2026-12-01T09:30:00</sunrise>"
+            "<sunset>2026-12-01T22:30:00+00:00</sunset></aisweb>"
+        ),
+        (
+            "<aisweb><sunrise>2026-12-01T09:30:00+01:00</sunrise>"
+            "<sunset>2026-12-01T22:30:00+00:00</sunset></aisweb>"
+        ),
+    ),
+)
+def test_sol_aisweb_incompleto_ou_fora_de_utc_fica_indisponivel(
+    monkeypatch, xml
+):
+    monkeypatch.setenv("AISWEB_API_KEY", "teste")
+    monkeypatch.setenv("AISWEB_API_PASS", "teste")
+    monkeypatch.setenv("PLANO_CONSULTAR_SOL", "1")
+
+    resultado = sol_aerodromo(
+        "SBJD",
+        datetime(2026, 12, 1, 12, tzinfo=timezone.utc),
+        getter=lambda *args, **kwargs: SimpleNamespace(
+            text=xml,
+            raise_for_status=lambda: None,
+        ),
+    )
+
+    assert resultado == {"estado": "indisponivel"}
 
 
 def test_emenda_ausente_nao_cria_coordenada(cliente, monkeypatch):

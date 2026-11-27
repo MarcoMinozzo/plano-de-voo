@@ -169,7 +169,7 @@ def _tabela_pares(linhas, estilos):
 
 
 def _tabela_resultados(linhas, estilos):
-    cabecalho = ("Grandeza", "Valor", "Unidade", "Fonte")
+    cabecalho = ("Grandeza", "Valor", "Unidade")
     dados = [[_paragrafo(valor, estilos["table_head"]) for valor in cabecalho]]
     for linha in linhas:
         dados.append(
@@ -177,12 +177,11 @@ def _tabela_resultados(linhas, estilos):
                 _paragrafo(linha.get("nome", ""), estilos["table"]),
                 _paragrafo(linha.get("valor", ""), estilos["table"]),
                 _paragrafo(linha.get("unidade", ""), estilos["table"]),
-                _paragrafo(linha.get("fonte", ""), estilos["table"]),
             ]
         )
     tabela = Table(
         dados,
-        colWidths=[39 * mm, 27 * mm, 22 * mm, 88 * mm],
+        colWidths=[70 * mm, 70 * mm, 38 * mm],
         repeatRows=1,
         hAlign="LEFT",
         splitByRow=1,
@@ -196,6 +195,64 @@ def _tabela_resultados(linhas, estilos):
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 5),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+    return tabela
+
+
+def _tabela_fontes(linhas, estilos):
+    cabecalho = (
+        "Campo",
+        "Valor",
+        "Fonte / publicador",
+        "Referência / data",
+        "Unidade / aplicabilidade / estado",
+    )
+    dados = [[_paragrafo(valor, estilos["table_head"]) for valor in cabecalho]]
+
+    def multilinha(*valores):
+        texto = "<br/>".join(filter(None, (_html(valor) for valor in valores)))
+        return Paragraph(texto, estilos["table"])
+
+    for linha in linhas:
+        dados.append(
+            [
+                _paragrafo(linha.get("campo", ""), estilos["table"]),
+                _paragrafo(linha.get("valor", ""), estilos["table"]),
+                multilinha(
+                    linha.get("fonte", ""),
+                    linha.get("publicador", ""),
+                ),
+                multilinha(
+                    linha.get("referencia", ""),
+                    linha.get("data", ""),
+                ),
+                multilinha(
+                    linha.get("unidade", ""),
+                    linha.get("aplicabilidade", ""),
+                    linha.get("estado", ""),
+                ),
+            ]
+        )
+    tabela = Table(
+        dados,
+        colWidths=[31 * mm, 29 * mm, 36 * mm, 42 * mm, 40 * mm],
+        repeatRows=1,
+        hAlign="LEFT",
+        splitByRow=1,
+    )
+    tabela.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PAPER]),
+                ("GRID", (0, 0), (-1, -1), 0.35, GRID),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
                 ("TOPPADDING", (0, 0), (-1, -1), 4),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ]

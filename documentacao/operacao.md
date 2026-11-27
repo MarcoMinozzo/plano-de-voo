@@ -43,7 +43,7 @@ versionamento. Não escreva os valores neste arquivo.
 | DATABASE_URL_DEMO_ORIGEM | Base legada, somente para leitura durante a importação única dos perfis sintéticos existentes |
 | SECRET_KEY | Assina a sessão do piloto |
 | COOKIE_SECURE | Use 1 fora de acesso local |
-| REDEMET_API_KEY | Radar e vento de área. Sem ela, esses itens ficam indisponíveis |
+| REDEMET_API_KEY | Vento de área, imagem de satélite, reserva do radar de chuva e prioridade do TAF REDEMET. A imagem de chuva do mapa usa RainViewer e não depende desta chave. Sem ela, vento, satélite e a reserva REDEMET ficam indisponíveis; o TAF usa AWC |
 | AISWEB_API_KEY | Carta visual vigente, pôr do sol e emenda do ROTAER, junto com a senha da API |
 | AISWEB_API_PASS | Senha da API do AISWEB. Sem o par, a carta e o catálogo nacional ficam indisponíveis |
 | OPENAIP_API_KEY | Acesso à camada aeronáutica comunitária OpenAIP. Sem ela, a camada fica indisponível; exige atribuição e uso compatível com CC BY-NC 4.0, inclusive não comercial |

@@ -18,6 +18,7 @@ from servidor.modelos import (
     agora,
 )
 from servidor.pdf_plano import trecho_limite
+from servidor.programacao import programar
 from servidor.planos_consulta import (
     CAMPOS_PARTICULARES,
     apagar as apagar,
@@ -37,6 +38,30 @@ def hora_ja_passou(valor):
         return _hora(valor) < agora()
     except (TypeError, ValueError):
         return False
+
+
+def horario_rota(valor):
+    """Dia e mês com hora UTC, sem o ano, para a tabela da rota."""
+    if not isinstance(valor, str) or not valor.strip():
+        return "Indisponível"
+    texto = valor.strip()
+    if texto.endswith("Z"):
+        texto = texto[:-1] + "+00:00"
+    try:
+        instante = datetime.fromisoformat(texto)
+    except ValueError:
+        return "Indisponível"
+    if instante.tzinfo is None:
+        return "Indisponível"
+    return instante.astimezone(timezone.utc).strftime("%d/%m %H:%M")
+
+
+def coordenada_graus(valor):
+    try:
+        numero = float(valor)
+    except (TypeError, ValueError):
+        return "Indisponível"
+    return f"{numero:.4f}"
 
 
 def _hora(valor):
@@ -109,6 +134,30 @@ def _lugar_nacional(emenda, lugar):
     )
 
 
+def _gravar_componente_observado(trechos, meteorologia):
+    from servidor.calculo import componente_vento
+    from servidor.tempo import vento_de_boletim
+
+    blocos = {}
+    if isinstance(meteorologia, dict) and isinstance(meteorologia.get("aerodromos"), dict):
+        blocos = meteorologia["aerodromos"]
+    for item in trechos:
+        for icao in (item.get("origem"), item.get("destino")):
+            lido = vento_de_boletim(blocos.get(icao))
+            if lido is None:
+                continue
+            conta = componente_vento(
+                item["proa_valor"],
+                lido["direcao_de_graus"],
+                lido["velocidade_kt"],
+            )
+            item["vento_sentido"] = conta["sentido"]
+            item["vento_componente_kt"] = conta["componente_kt"]
+            item["vento_fonte"] = lido["fonte"]
+            item["vento_estado"] = "disponivel"
+            break
+
+
 def _gravar_trechos(plano, trechos):
     plano.trechos.clear()
     for item in trechos:
@@ -130,6 +179,9 @@ def _gravar_trechos(plano, trechos):
                 combustivel_unidade=item["combustivel_unidade"],
                 combustivel_fonte=item["combustivel_fonte"],
                 vento_estado=item["vento_estado"],
+                vento_sentido=item.get("vento_sentido"),
+                vento_componente_kt=item.get("vento_componente_kt"),
+                vento_fonte=item.get("vento_fonte"),
                 por_do_sol_estado=item["por_do_sol_estado"],
                 velocidade_solo_kt=item["velocidade_solo_kt"],
             )
@@ -241,6 +293,62 @@ def _preparar_entrada(db, dados):
     ), None
 
 
+def completar_programacao_solar(db, plano):
+    """Recalcula a agenda quando a consulta solar anterior não trouxe nascer e pôr do sol."""
+    resultado = dict(plano.resultado or {})
+    programacao = resultado.get("programacao")
+    ausente = not isinstance(programacao, dict)
+    solar_faltou = (
+        isinstance(programacao, dict)
+        and programacao.get("estado") == "indisponivel"
+        and programacao.get("motivo") == "dados_solares_indisponiveis"
+    )
+    sem_intervalo = (
+        isinstance(programacao, dict)
+        and programacao.get("estado") == "disponivel"
+        and programacao.get("intervalo_abastecimento_h") != 1
+    )
+    if not ausente and not solar_faltou and not sem_intervalo:
+        return
+    trechos = [
+        {
+            "ordem": trecho.ordem,
+            "origem": trecho.origem_icao,
+            "destino": trecho.destino_icao,
+            "tempo_valor": trecho.tempo_valor,
+            "tempo_unidade": trecho.tempo_unidade,
+        }
+        for trecho in sorted(plano.trechos, key=lambda item: item.ordem)
+    ]
+    if not trechos:
+        return
+    nova = programar(
+        trechos,
+        plano.hora_partida,
+        lambda icao, instante: sol_aerodromo(icao, instante),
+    )
+    if nova.get("estado") != "disponivel":
+        return
+    por_ordem = {item["ordem"]: item for item in nova["trechos"]}
+    for trecho in plano.trechos:
+        horario = por_ordem.get(trecho.ordem)
+        trecho.por_do_sol_estado = (
+            "disponivel"
+            if horario and horario.get("estado") == "disponivel"
+            else "indisponivel"
+        )
+    resultado["programacao"] = nova
+    plano.resultado = resultado
+    db.commit()
+
+
+def recalcular(db, piloto, plano):
+    """Monta de novo o relatório com os dados já gravados neste plano."""
+    dados = valores_do_plano(plano)
+    dados["confirmar_hora"] = True
+    return montar(db, piloto, dados, plano)
+
+
 def montar(db, piloto, dados, plano=None):
     entrada, erro = _preparar_entrada(db, dados)
     if erro is not None:
@@ -256,14 +364,6 @@ def montar(db, piloto, dados, plano=None):
     ) = entrada
     vento_plano = tempo_mod.vento_area(origem, destino)
     vento_de, limite_vento_kt = _vento_para_rota(vento_plano)
-    cache_sol = {}
-
-    def sol_de(chegada, instante):
-        chave = (chegada.icao, instante.date().isoformat())
-        if chave not in cache_sol:
-            cache_sol[chave] = sol_aerodromo(chegada.icao, instante)
-        return cache_sol[chave]
-
     _estado, lugares = lugares_da_tela(db)
     rota = escolher(
         aeronave,
@@ -272,10 +372,23 @@ def montar(db, piloto, dados, plano=None):
         destino,
         particulares,
         vento_de=vento_de,
-        sol_de=sol_de,
-        hora_partida=hora,
         limite_vento_kt=limite_vento_kt,
     )
+    programacao = programar(
+        rota["trechos"],
+        hora,
+        lambda icao, instante: sol_aerodromo(icao, instante),
+    )
+    horarios_por_ordem = {
+        item["ordem"]: item for item in programacao["trechos"]
+    }
+    for trecho in rota["trechos"]:
+        horario = horarios_por_ordem.get(trecho["ordem"])
+        trecho["por_do_sol_estado"] = (
+            "disponivel"
+            if horario and horario["estado"] == "disponivel"
+            else "indisponivel"
+        )
     aerodromos_rota = []
     vistos = set()
     for trecho in rota["trechos"]:
@@ -324,6 +437,7 @@ def montar(db, piloto, dados, plano=None):
     )
     resultado["proxy_sintetico"] = aeronave.manual_estado == "proxy_sintetico"
     resultado["modelo_alvo"] = aeronave.nome if resultado["proxy_sintetico"] else None
+    resultado["programacao"] = programacao
     momento = agora()
     if plano is None:
         plano = PlanoDeVoo(piloto_id=piloto.id, criado_em=momento)
@@ -346,6 +460,7 @@ def montar(db, piloto, dados, plano=None):
     plano.hipotese_reabastecimento = rota["hipotese"]
     plano.atualizado_em = momento
     _aplicar_itens(plano, aeronave, anteriores)
+    _gravar_componente_observado(rota["trechos"], fontes["meteorologia"])
     _gravar_trechos(plano, rota["trechos"])
     db.commit()
     db.refresh(plano)

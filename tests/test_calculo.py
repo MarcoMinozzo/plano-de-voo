@@ -25,6 +25,42 @@ def aerodromo(icao, lat, lon):
     return SimpleNamespace(icao=icao, lat=lat, lon=lon, fonte="fonte de teste")
 
 
+def test_componente_de_vento_separa_proa_e_cauda():
+    from servidor.calculo import componente_vento
+
+    proa = componente_vento(90, 90, 10)
+    cauda = componente_vento(90, 270, 10)
+    assert proa["sentido"] == "proa"
+    assert proa["componente_kt"] == 10
+    assert cauda["sentido"] == "cauda"
+    assert cauda["componente_kt"] == 10
+
+
+def test_ficha_reune_km_pesos_e_reserva_ja_calculados():
+    from servidor.calculo import grandezas_do_trecho
+
+    trecho = SimpleNamespace(
+        distancia_valor=100.0,
+        distancia_unidade="nm",
+        velocidade_solo_kt=95.0,
+        combustivel_valor=15.0,
+        combustivel_unidade="gal",
+    )
+    aeronave = aeronave_minima()
+    grandeza = grandezas_do_trecho(
+        trecho,
+        aeronave,
+        {"peso_pessoas_kg": 80, "peso_bagagem_kg": 5},
+    )
+    assert grandeza["distancia_km"] == round(100.0 / 0.539957, 1)
+    assert grandeza["velocidade_planejamento"] == 91.0
+    assert grandeza["velocidade_solo_kt"] == 95.0
+    assert grandeza["reserva"] == 2.5
+    assert grandeza["combustivel_voo"] == 12.5
+    assert grandeza["peso_combustivel_kg"] == 59.8
+    assert grandeza["peso_aeronave_kg"] == 548.8
+
+
 def test_grandeza_tem_unidade_e_fonte():
     conta = calcular(
         aeronave_minima(),

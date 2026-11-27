@@ -1,11 +1,18 @@
-from datetime import datetime, timedelta, timezone
 from math import sqrt
 from types import SimpleNamespace
 
 import servidor.rota as rota_mod
+import servidor.planos as planos_mod
 from servidor import tempo as tempo_mod
 from servidor.calculo import distancia_nm, proa_graus
-from servidor.modelos import Aerodromo, Aeronave, EmendaRotaer, ExtratoRab, Sessao
+from servidor.modelos import (
+    Aerodromo,
+    Aeronave,
+    EmendaRotaer,
+    ExtratoRab,
+    PlanoDeVoo,
+    Sessao,
+)
 from servidor.rota import escolher
 from tests.conftest import JSON, cadastrar
 from tests.conftest_rota import preparar_rota, semear_perfis_sinteticos_teste
@@ -385,14 +392,10 @@ def test_vento_de_cauda_nao_estende_o_alcance_em_ar_calmo():
     assert longo["trechos"] == []
 
 
-def test_por_do_sol_conhecido_tira_o_trecho_da_rota():
+def test_rota_fuel_based_remains_available_for_daylight_scheduler():
     aviao = _aviao()
     origem = _lugar("SA", 0, 0)
     destino = _lugar("SB", 0, 30)
-    hora = datetime(2026, 12, 1, 12, tzinfo=timezone.utc)
-
-    def sol_de(_aero, _chegada):
-        return {"estado": "disponivel", "por_do_sol": hora + timedelta(minutes=1)}
 
     rota = escolher(
         aviao,
@@ -400,8 +403,63 @@ def test_por_do_sol_conhecido_tira_o_trecho_da_rota():
         origem,
         destino,
         PARTICULARES,
-        sol_de=sol_de,
-        hora_partida=hora,
     )
-    assert rota["rota_estado"] == "inaceitavel"
-    assert "pôr do sol" in rota["motivo"]
+    assert rota["rota_estado"] == "aceitavel"
+    assert _caminho(rota) == ["SA", "SB"]
+
+
+def test_plano_persiste_programacao_calculada_pelo_servidor(cliente, monkeypatch):
+    cadastrar(cliente)
+    ids = preparar_rota()
+    chamadas_sol = []
+
+    def sol_aerodromo_falso(icao, instante):
+        chamadas_sol.append((icao, instante.date()))
+        nascer = instante.replace(hour=6, minute=0, second=0, microsecond=0)
+        por = instante.replace(hour=20, minute=0, second=0, microsecond=0)
+        return {
+            "estado": "disponivel",
+            "nascer_do_sol": nascer,
+            "por_do_sol": por,
+            "fonte": "AISWEB sol",
+        }
+
+    monkeypatch.setattr(planos_mod, "sol_aerodromo", sol_aerodromo_falso)
+    monkeypatch.setattr(
+        tempo_mod,
+        "vento_area",
+        lambda *args, **kwargs: {"estado": "indisponivel"},
+    )
+    monkeypatch.setattr(
+        tempo_mod,
+        "buscar",
+        lambda *args, **kwargs: {
+            "meteorologia": {"estado": "indisponivel"},
+            "vento": {"estado": "indisponivel"},
+            "carta": {"estado": "indisponivel"},
+            "radar": {"estado": "indisponivel"},
+        },
+    )
+
+    resposta = cliente.post(
+        "/planos",
+        json=_pedido(ids["alfa"], "S0A1", "S0C3"),
+        headers=JSON,
+    )
+
+    assert resposta.status_code == 201
+    corpo = resposta.get_json()
+    programacao = corpo["resultado"]["programacao"]
+    assert corpo["programacao"] == programacao
+    assert programacao["estado"] == "disponivel"
+    assert len(programacao["trechos"]) == 2
+    assert programacao["trechos"][0]["etd"].endswith("+00:00")
+    assert programacao["trechos"][0]["eta"].endswith("+00:00")
+    assert chamadas_sol
+
+    db = Sessao()
+    try:
+        plano = db.get(PlanoDeVoo, corpo["id"])
+        assert plano.resultado["programacao"] == programacao
+    finally:
+        Sessao.remove()

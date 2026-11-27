@@ -1,15 +1,16 @@
 ---
-title: 'Carta WAC como camada do mapa'
+title: 'Mapa quadrado com satélite REDEMET e opção WAC visível'
 type: 'feature'
-created: '2026-11-25'
-status: 'draft'
+created: '2026-11-27'
+status: 'in-progress'
 route: 'dispatch'
 review_loop_iteration: 0
+baseline_commit: '6de1edde15ea9090ee84cec2696a591d96fdd04e'
 context:
   - '{project-root}/.specify/memory/constitution.md'
   - '{project-root}/specs/009-mapa-interativo-carta-radar/spec.md'
   - '{project-root}/specs/009-mapa-interativo-carta-radar/plan.md'
-  - '{project-root}/_bmad-output/planning-artifacts/research/technical-verificar-georreferenciamento-da-carta-w-2026-11-25/research.md'
+  - '{project-root}/documentacao/piloto.md'
 ---
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
@@ -38,32 +39,36 @@ context:
 
 </frozen-after-approval>
 
-## Open Questions
+## User Request Addendum
 
-- **Fonte e regra de produto** — OpenAIP oferece tiles aeronáuticos PNG/PBF licenciados CC BY-NC 4.0, mas não uma WAC oficial; a constituição atual determina AISWEB como fonte da carta visual. Opções: manter essa regra e aguardar autorização AISWEB (sem camada até lá) / pedir alteração explícita da constituição para permitir uma camada OpenAIP claramente rotulada como dado aeronáutico comunitário, não como WAC, com atribuição, cumprimento CC BY-NC e chave de API configurada (camada diferente da carta oficial).
+- Em telas desktop, o quadro do mapa deve ser quadrado; em telas pequenas, preservar a altura atual.
+- Adicionar uma sobreposição opcional de imagem de satélite REDEMET, separada do radar e ativada sob demanda. Usar o frame mais recente válido do produto `realcada`, seus limites geográficos e horário retornados pela API; não expor a chave REDEMET no navegador.
+- Manter o controle “Carta WAC” visível. Quando houver documentos AISWEB válidos, ele abre os links existentes; sem documentos, fica desabilitado e informa que a carta está indisponível. Não apresentar PDF como camada raster nem contornar os gates de autorização, edição, georreferenciamento e cobertura já definidos.
 
 ## Code Map
 
-- `servidor/tempo.py:carta` — consulta a API AISWEB autenticada, escolhe WAC cuja caixa cobre origem/destino e devolve apenas URL/fonte; não baixa nem georreferencia o PDF.
-- `servidor/planos.py` — persiste `carta` e `radar` como JSON no plano.
-- `app.py` — resolve pontos da rota publicada e passa-os ao template; consulta do plano já filtra por piloto.
-- `templates/plano.html` — Leaflet usa OSM fixo e adiciona o radar automaticamente; a carta atual é apenas um link documental.
-- `tests/test_tempo.py`, `tests/test_tela_piloto.py` — mocks AISWEB e validação da tela; estender para metadados/estados de carta e interação das camadas.
-- `documentacao/operacao.md` — descreve credenciais AISWEB; nesta sessão elas não estão configuradas e não há GeoPDF em `static/`.
-- `specs/009-mapa-interativo-carta-radar/` — critérios e tarefas já condicionam a implementação aos gates da carta; manter alinhados antes de alterar o runtime.
+- `servidor/tempo.py:radar` — padrão existente para consultar REDEMET com `REDEMET_API_KEY`; `carta` consulta AISWEB e retorna documentos, sem converter PDFs.
+- `app.py:camada_radar` — padrão de endpoint autenticado que verifica o piloto dono antes de resolver uma camada.
+- `templates/plano.html:#mapa` — mapa Leaflet e controles; `wac-toggle` só é renderizado quando há PDF, `radar-toggle` é independente, e o mapa tem altura fixa de 20rem.
+- `tests/test_tempo.py`, `tests/test_tela_piloto.py` — mocks da API e testes de rota autenticada, controles, WAC disponível e estado do radar; estender com estados de satélite e WAC indisponível.
+- `static/css/input.css` e `package.json` — fonte e comando de geração do CSS Tailwind; classes novas precisam constar no template e no CSS gerado.
+- `documentacao/piloto.md` — instruções atuais sobre carta e radar; acrescentar a camada de satélite e seus estados.
+- `specs/009-mapa-interativo-carta-radar/` — mantém os gates obrigatórios para qualquer camada raster WAC; não habilitar WAC raster nesta mudança.
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Validar o GeoPDF da edição atual, georreferenciamento, cobertura completa, autorização oficial e geração reproduzível de tiles; registrar evidências antes de habilitar a camada.
-- [ ] Atualizar a spec, o plano e as tarefas do Spec Kit com o armazenamento/versionamento autorizado dos tiles e o contrato da camada.
-- [ ] Integrar a base WAC selecionável e os controles de ruas/radar no Leaflet, sem alterar cálculo, geometria ou propriedade do plano.
-- [ ] Cobrir carta disponível/indisponível, tile com falha, radar independente e rota preservada nos testes; atualizar a documentação do piloto.
+- [ ] `servidor/tempo.py` — Resolver o frame REDEMET `realcada` mais recente e validar URL HTTPS, horário e limites antes de devolver os metadados.
+- [ ] `app.py` — Expor os metadados por endpoint autenticado, limitado ao piloto dono do plano, sem persistir a imagem nem incluir a chave na resposta.
+- [ ] `templates/plano.html`, `static/css/input.css`, `static/css/tailwind.css` — Adicionar o controle de satélite sob demanda, manter radar independente, sempre renderizar a opção WAC com estado disponível/indisponível e tornar o mapa quadrado no desktop.
+- [ ] `tests/test_tempo.py`, `tests/test_tela_piloto.py` — Cobrir resposta válida/inválida da API, autorização do plano, ausência de chave exposta, visibilidade WAC e proporção responsiva com casos focados.
+- [ ] `documentacao/piloto.md` — Explicar a camada REDEMET, horário do frame e comportamento quando indisponível.
 
 **Acceptance Criteria:**
-- Dado um tilepack oficial autorizado, vigente e que cobre toda a rota, quando o piloto seleciona Carta, então vê a WAC alinhada, com fonte/edição identificáveis, rota preservada e radar controlável.
-- Dado um gate não comprovado ou tile inválido, quando o plano abre ou a carta é selecionada, então a carta aparece indisponível e ruas não são apresentadas como carta.
-- Dado qualquer mudança de base ou radar, quando a rota está visível, então seus pontos permanecem inalterados e o mapa continua utilizável por toque e teclado.
+- Dada uma janela de 390 px ou 1440 px, quando o mapa é exibido, então mantém o layout móvel atual ou tem proporção 1:1 no desktop, respectivamente.
+- Dada uma resposta REDEMET válida, quando o piloto ativa Satélite, então o frame mais recente aparece sobre o mapa com horário/fonte, sem alterar rota ou radar; sem resposta válida, não desenha imagem e informa indisponibilidade.
+- Dado um plano sem carta AISWEB utilizável, quando o mapa é aberto, então “Carta WAC” continua visível, desabilitada e identificada como indisponível; nenhum mapa de ruas ou PDF é apresentado como camada WAC.
+- Dado um plano com documentos WAC AISWEB válidos, quando o piloto seleciona “Carta WAC”, então os documentos oficiais continuam acessíveis pelo diálogo atual.
 
 ## Implementation Notes
 
@@ -73,13 +78,14 @@ context:
 
 ## Design Notes
 
-A aplicação já busca URL WAC na API AISWEB, mas isso não fornece uma camada cartográfica pronta. A inspeção anterior confirmou georreferenciamento somente em uma carta de 2020; a tentativa local de gerar tiles falhou por incompatibilidade GDAL/NumPy. A busca da política oficial AISWEB indica restrições de uso do conteúdo, com exceções sujeitas a regulamentação/autorização; a página direta retornou 403 nesta sessão. A OpenAIP oferece uma camada de dados aeronáuticos licenciada, mas não é uma carta WAC e usar outra fonte exige alterar a regra vigente da constituição. Nenhum dado antigo ou derivado será publicado sem validação e autorização.
+O endpoint público documentado pela REDEMET para o produto `realcada` fornece imagens, data/hora e caixa `lat_lon`; a consulta autenticada deve permanecer no servidor. Desenhar a imagem em um pane próprio abaixo da rota preserva a legibilidade dos pontos e permite manter o radar independente. O botão WAC de documento não significa que a carta esteja georreferenciada: os gates já registrados em `specs/009-mapa-interativo-carta-radar/` continuam obrigatórios para uma futura camada WAC raster.
 
 ## Verification
 
 **Commands:**
-- `uv run pytest --no-cov tests/test_tempo.py tests/test_tela_piloto.py` -- testes focados aprovados.
+- `uv run pytest --no-cov tests/test_tempo.py tests/test_tela_piloto.py -k 'satelite or mapa or wac'` -- testes focados da mudança passam.
+- `npm run css:build` -- CSS gerado contém as classes responsivas do mapa.
 - `git diff --check` -- nenhuma falha de whitespace.
 
 **Manual checks:**
-- Confirmar edição e cobertura da carta, alinhamento com pontos da rota, controles por toque/teclado em 390 px e 1440 px, falha explícita sem fallback e autorização documentada para os tiles.
+- Confirmar quadro 1:1 em 1440 px, altura móvel preservada em 390 px, controles por teclado/toque, horário e atribuição REDEMET e estados WAC/satélite indisponíveis.

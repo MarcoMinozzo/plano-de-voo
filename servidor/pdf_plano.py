@@ -2,8 +2,7 @@ import re
 from io import BytesIO
 from pathlib import Path
 
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.platypus import Paragraph
+from reportlab.platypus import PageBreak, Paragraph
 
 from servidor.pdf_layout import (
     _estilos,
@@ -12,6 +11,7 @@ from servidor.pdf_layout import (
     _paragrafo,
     _partida_rotulo,
     _rota_completa,
+    _tabela_fontes,
     _tabela_pares,
     _tabela_resultados,
 )
@@ -25,6 +25,7 @@ ROTULOS_LIDOS = {
     "aceitavel": "aceitável para planejamento",
     "indisponivel": "indisponível",
     "disponivel": "disponível",
+    "nao_fornecido_pela_fonte": "não fornecido pela fonte",
 }
 
 
@@ -51,49 +52,6 @@ def trecho_limite():
     if marca not in texto:
         return texto.strip()
     return texto.split(marca, 1)[1].strip()
-
-
-def _linhas_procedencia(plano):
-    linhas = []
-    if plano.resultado.get("proxy_sintetico") or plano.resultado.get("dados_sinteticos"):
-        linhas.append(
-            "perfil sintético didático — valores não validados; "
-            "não representam dados do modelo associado"
-        )
-        if plano.resultado.get("modelo_alvo"):
-            linhas.append(
-                f"Alvo do exercício: {plano.resultado['modelo_alvo']}. "
-                "A associação temática não comprova aplicabilidade."
-            )
-    elif plano.resultado.get("estimativa_didatica"):
-        linhas.append(
-            "Estimativas didáticas: não são adequadas para planejamento de voo real "
-            "e não autorizam o voo."
-        )
-    for campo, fonte in (plano.resultado.get("procedencia") or {}).items():
-        if fonte is None:
-            linhas.append(f"{campo}: indisponível")
-            continue
-        sintetica = fonte.get("dados_sinteticos", False)
-        if sintetica:
-            linhas.append(
-                f"Dados sintéticos didáticos — {campo}: "
-                f"{fonte['valor']} {fonte['unidade']}; valor não validado."
-            )
-            continue
-        rotulo = "Estimativa didática — " if fonte["estimativa_didatica"] else ""
-        data_publicacao = fonte.get("data_publicacao") or "indisponível"
-        linhas.append(
-            f"{rotulo}{campo}: {fonte['valor']} {fonte['unidade']} "
-            f"— {fonte['publicador']}; {fonte['referencia']}; "
-            f"publicação: {data_publicacao}; "
-            f"consulta: {fonte['data_consulta'] or 'indisponível'}; "
-            f"aplicabilidade: {fonte['modelo_variante']}; "
-            f"perfil: {fonte['perfil'] or 'não aplicável'}; "
-            f"edição/revisão: {fonte['revisao_edicao'] or 'não informada'}; "
-            f"página/tabela: {fonte['pagina_tabela'] or 'não informada'}"
-        )
-    return linhas
 
 
 def _markdown_flowables(texto, estilos):
@@ -130,7 +88,8 @@ def _markdown_flowables(texto, estilos):
     return flowables
 
 
-def _conteudo_relatorio(plano, estilos):
+def _conteudo_relatorio(plano, estilos, fontes_relatorio=None, aerodromos=None):
+    aerodromos = aerodromos or {}
     flowables = [
         Paragraph("Resumo do voo", estilos["section"]),
         _tabela_pares(
@@ -148,6 +107,61 @@ def _conteudo_relatorio(plano, estilos):
             estilos,
         ),
     ]
+
+    if aerodromos:
+        flowables.append(
+            Paragraph("Aeródromos de origem e destino", estilos["section"])
+        )
+        for papel, icao in (
+            ("Origem", plano.origem_icao),
+            ("Destino", plano.destino_icao),
+        ):
+            aerodromo = aerodromos.get(icao)
+            contatos_verificados = bool(
+                getattr(aerodromo, "contatos_rotaer_verificados", False)
+            )
+            flowables.append(
+                Paragraph(
+                    f"{_html(getattr(aerodromo, 'nome', 'Nome indisponível'))} "
+                    f"({icao}) — {papel}",
+                    estilos["subsection"],
+                )
+            )
+            flowables.append(
+                _tabela_pares(
+                    [
+                        ("Tipo", getattr(aerodromo, "tipo", None) or "Indisponível"),
+                        (
+                            "Coordenadas",
+                            (
+                                f"{aerodromo.lat}, {aerodromo.lon}"
+                                if aerodromo is not None
+                                else "Indisponível"
+                            ),
+                        ),
+                        ("Elevação (m)", getattr(aerodromo, "elev_m", None) or "Indisponível"),
+                        (
+                            "Telefone publicado",
+                            (
+                                getattr(aerodromo, "telefone", None)
+                                if contatos_verificados
+                                else None
+                            )
+                            or "Indisponível",
+                        ),
+                        (
+                            "E-mail publicado",
+                            (
+                                getattr(aerodromo, "email", None)
+                                if contatos_verificados
+                                else None
+                            )
+                            or "Indisponível",
+                        ),
+                    ],
+                    estilos,
+                )
+            )
 
     if plano.aviso:
         flowables.append(
@@ -168,10 +182,27 @@ def _conteudo_relatorio(plano, estilos):
 
     if plano.trechos:
         flowables.append(Paragraph("Trechos", estilos["section"]))
+        programacao = plano.resultado.get("programacao")
+        agendas = (
+            programacao.get("trechos", [])
+            if isinstance(programacao, dict)
+            else []
+        )
+        agendas_por_ordem = {
+            agenda.get("ordem"): agenda
+            for agenda in agendas
+            if isinstance(agenda, dict)
+        }
         for trecho in plano.trechos:
+            origem = aerodromos.get(trecho.origem_icao)
+            destino = aerodromos.get(trecho.destino_icao)
             flowables.append(
                 Paragraph(
-                    f"{trecho.ordem}. {trecho.origem_icao} > {trecho.destino_icao}",
+                    f"{trecho.ordem}. "
+                    f"{_html(getattr(origem, 'nome', 'Nome indisponível'))} "
+                    f"({trecho.origem_icao}) &gt; "
+                    f"{_html(getattr(destino, 'nome', 'Nome indisponível'))} "
+                    f"({trecho.destino_icao})",
                     estilos["subsection"],
                 )
             )
@@ -180,23 +211,19 @@ def _conteudo_relatorio(plano, estilos):
                     [
                         (
                             "Distância",
-                            f"{trecho.distancia_valor} {trecho.distancia_unidade} — "
-                            f"{trecho.distancia_fonte}",
+                            f"{trecho.distancia_valor} {trecho.distancia_unidade}",
                         ),
                         (
                             "Proa",
-                            f"{trecho.proa_valor} {trecho.proa_unidade} — "
-                            f"{trecho.proa_fonte}",
+                            f"{trecho.proa_valor} {trecho.proa_unidade}",
                         ),
                         (
                             "Tempo",
-                            f"{trecho.tempo_valor} {trecho.tempo_unidade} — "
-                            f"{trecho.tempo_fonte}",
+                            f"{trecho.tempo_valor} {trecho.tempo_unidade}",
                         ),
                         (
                             "Combustível",
-                            f"{trecho.combustivel_valor} {trecho.combustivel_unidade} — "
-                            f"{trecho.combustivel_fonte}",
+                            f"{trecho.combustivel_valor} {trecho.combustivel_unidade}",
                         ),
                         ("Vento", rotulo_lido(trecho.vento_estado)),
                         ("Pôr do sol", rotulo_lido(trecho.por_do_sol_estado)),
@@ -204,11 +231,48 @@ def _conteudo_relatorio(plano, estilos):
                     estilos,
                 )
             )
-
-    procedencia = _linhas_procedencia(plano)
-    if procedencia:
-        flowables.append(Paragraph("Fontes técnicas da aeronave", estilos["section"]))
-        flowables.extend(_paragrafo(linha, estilos["small"]) for linha in procedencia)
+            agenda = agendas_por_ordem.get(trecho.ordem)
+            if not isinstance(programacao, dict) or programacao.get("estado") == "nao_calculada":
+                linhas_programacao = [
+                    ("Programação diurna", "Não calculada.")
+                ]
+            elif agenda and agenda.get("estado") == "disponivel":
+                solar_origem = agenda.get("origem") or {}
+                solar_destino = agenda.get("destino") or {}
+                linhas_programacao = [
+                    ("Partida estimada (ETD, UTC)", agenda.get("etd") or "Indisponível"),
+                    ("Chegada estimada (ETA, UTC)", agenda.get("eta") or "Indisponível"),
+                    (
+                        f"Nascer do sol — {trecho.origem_icao} (UTC)",
+                        solar_origem.get("nascer_do_sol") or "Indisponível",
+                    ),
+                    (
+                        f"Pôr do sol — {trecho.origem_icao} (UTC)",
+                        solar_origem.get("por_do_sol") or "Indisponível",
+                    ),
+                    (
+                        f"Nascer do sol — {trecho.destino_icao} (UTC)",
+                        solar_destino.get("nascer_do_sol") or "Indisponível",
+                    ),
+                    (
+                        f"Pôr do sol — {trecho.destino_icao} (UTC)",
+                        solar_destino.get("por_do_sol") or "Indisponível",
+                    ),
+                ]
+                pernoite = agenda.get("pernoite")
+                if pernoite:
+                    linhas_programacao.append(
+                        (
+                            "Pernoite",
+                            f"{pernoite.get('icao', 'Indisponível')} — "
+                            f"{pernoite.get('data', 'Data indisponível')}",
+                        )
+                    )
+            else:
+                linhas_programacao = [
+                    ("Programação diurna", "Indisponível para este trecho.")
+                ]
+            flowables.append(_tabela_pares(linhas_programacao, estilos))
 
     linhas_resultado = plano.resultado.get("linhas", [])
     if linhas_resultado:
@@ -226,8 +290,7 @@ def _conteudo_relatorio(plano, estilos):
     if vento.get("estado") == "disponivel":
         texto_vento = (
             f"Vento: {vento.get('direcao_de_graus')} graus, "
-            f"{vento.get('velocidade_kt')} {vento.get('unidade', 'kt')} "
-            f"({vento.get('fonte', '')})"
+            f"{vento.get('velocidade_kt')} {vento.get('unidade', 'kt')}"
         )
         if vento.get("efeito"):
             texto_vento += f" — {vento['efeito']}"
@@ -240,16 +303,13 @@ def _conteudo_relatorio(plano, estilos):
         ("Radar de chuva", plano.radar or {}),
     ):
         descricao = f"{rotulo}: {rotulo_lido(camada.get('estado', 'indisponivel'))}"
-        if camada.get("fonte"):
-            descricao += f" — fonte: {camada['fonte']}"
         flowables.append(_paragrafo(descricao, estilos["body"]))
 
     flowables.append(Paragraph("Checklist sugerido", estilos["section"]))
     if plano.itens:
         flowables.extend(
             Paragraph(
-                f"<bullet>&bull;</bullet>{_html(item.texto)} "
-                f"<font color='#52677F'>— fonte: {_html(item.fonte)}</font>",
+                f"<bullet>&bull;</bullet>{_html(item.texto)}",
                 estilos["bullet"],
             )
             for item in plano.itens
@@ -272,13 +332,30 @@ def _conteudo_relatorio(plano, estilos):
                 estilos["body"],
             )
         )
+    if fontes_relatorio:
+        linhas_fontes = [
+            {**linha, "estado": rotulo_lido(linha["estado"])}
+            for linha in fontes_relatorio
+        ]
+        flowables.extend(
+            (
+                PageBreak(),
+                Paragraph("Fontes do relatório", estilos["section"]),
+                _tabela_fontes(linhas_fontes, estilos),
+            )
+        )
     return flowables
 
 
-def gerar_pdf(plano, nome_piloto):
+def gerar_pdf(plano, nome_piloto, aerodromos=None, fontes_relatorio=None):
     buffer = BytesIO()
     estilos = _estilos()
-    conteudo = _conteudo_relatorio(plano, estilos)
+    conteudo = _conteudo_relatorio(
+        plano,
+        estilos,
+        fontes_relatorio=fontes_relatorio,
+        aerodromos=aerodromos,
+    )
     _montar_documento(
         buffer,
         plano,

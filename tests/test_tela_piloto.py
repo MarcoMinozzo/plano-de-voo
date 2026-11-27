@@ -523,13 +523,78 @@ console.log(JSON.stringify({
     }
 
 
-def test_painel_diz_aceitavel_para_planejamento(cliente):
+def test_painel_oferece_editar_e_apagar_somente_o_proprio_plano(cliente):
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+    html = cliente.get("/painel").get_data(as_text=True)
+    assert f'href="/planos/{plano_id}/alterar"' in html
+    assert 'aria-label="Editar plano SBJD SBAU"' in html
+    assert 'aria-label="Apagar plano SBJD SBAU"' in html
+    assert ">Editar<" not in html
+    assert ">Apagar<" not in html
+    assert f'action="/planos/{plano_id}/apagar"' in html
+    assert "Confirmar exclusão" in html
+
+    sem_confirmacao = cliente.post(f"/planos/{plano_id}/apagar")
+    assert sem_confirmacao.status_code == 302
+    assert cliente.get(f"/planos/{plano_id}", headers=JSON).status_code == 200
+
+    outro = cliente.application.test_client()
+    cadastrar(outro, "bia")
+    alheio = outro.post(f"/planos/{plano_id}/apagar", data={"confirmar": "on"})
+    assert alheio.status_code == 404
+
+    apagado = cliente.post(f"/planos/{plano_id}/apagar", data={"confirmar": "on"})
+    assert apagado.status_code == 302
+    assert cliente.get(f"/planos/{plano_id}", headers=JSON).status_code == 404
+    assert "Não há voo planejado." in cliente.get("/painel").get_data(as_text=True)
+
+
+def test_painel_mostra_partida_na_linha_do_titulo_sem_rotulo_de_estado(cliente):
     cadastrar(cliente)
     criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
     assert criado.status_code == 201
     html = cliente.get("/painel").get_data(as_text=True)
-    assert "aceitável para planejamento" in html
+    cabecalho = html.split('class="plano-cabecalho"', 1)[1].split('class="plano-acoes"', 1)[0]
+    assert "SBJD → SBAU" in cabecalho
+    assert "Partida 01/12/2026 12:00 TL" in cabecalho
+    assert "aceitável para planejamento" not in html
     assert ">calculado<" not in html
+
+
+def test_atualizar_recalcula_o_relatorio_sem_texto_no_botao(cliente):
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+    html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
+    assert f'action="/planos/{plano_id}/atualizar"' in html
+    botao = re.search(
+        r'<button\b[^>]*aria-label="Atualizar relatório"[^>]*>(.*?)</button>',
+        html,
+        re.S,
+    )
+    assert botao is not None
+    assert re.sub(r"<[^>]+>", "", botao.group(1)).strip() == ""
+    assert 'class="recalculando"' in html
+    assert "Recalculando..." in html
+    assert "is-recalculando" in html
+    db = Sessao()
+    try:
+        plano = db.get(PlanoDeVoo, plano_id)
+        plano.resultado = {**plano.resultado, "efeito_vento": "marcador-antigo"}
+        db.commit()
+    finally:
+        Sessao.remove()
+    resposta = cliente.post(f"/planos/{plano_id}/atualizar")
+    assert resposta.status_code == 302
+    corpo = cliente.get(f"/planos/{plano_id}", headers=JSON).get_json()
+    assert corpo["id"] == plano_id
+    assert corpo["resultado"]["efeito_vento"] != "marcador-antigo"
+    outro = cliente.application.test_client()
+    cadastrar(outro, "bia")
+    alheio = outro.post(f"/planos/{plano_id}/atualizar")
+    assert alheio.status_code == 404
 
 
 def test_alterar_recalcula_o_mesmo_plano_e_recusa_nao_substitui(cliente):
@@ -570,9 +635,10 @@ def test_tabela_vazia_nao_aparece_e_mapa_avisa_a_carta(cliente, monkeypatch):
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
     assert "<th>Grandeza</th>" not in html
     assert 'role="tablist"' in html
-    assert html.index("não substitui a carta de voo visual") < html.index('id="mapa"')
-    assert "Carta WAC indisponível" in html
-    assert "Chave REDEMET não configurada." in html
+    assert html.index('id="mapa"') < html.index('id="estado-mapa"')
+    assert "Carta WAC indisponível" not in html
+    assert "Chave REDEMET não configurada." not in html
+    assert "Mapa de ruas; não substitui a carta de voo visual oficial." not in html
     assert "Como ler este plano" not in html
     assert "Imprimir PDF" not in html
 
@@ -592,13 +658,15 @@ def test_detalhe_plano_apresenta_rota_completa_contatos_e_alerta_destacado(clien
         origem.rotaer_atualizado_em = date(2026, 11, 26)
         origem.telefone = "(11) 99999-1234"
         origem.email = "operacoes@jundiai.example"
+        origem.contatos_rotaer_verificados = True
         destino = db.get(Aerodromo, "SBAU")
         destino.nome = "Aeroporto de Araçatuba"
         destino.tipo = "aerodromo"
         destino.rotaer_versao_id = "destino-1"
         destino.rotaer_atualizado_em = date(2026, 11, 26)
-        destino.telefone = None
-        destino.email = None
+        destino.telefone = "(18) 99999-9999"
+        destino.email = "contato@aracatuba.example"
+        destino.contatos_rotaer_verificados = False
         plano = db.get(PlanoDeVoo, plano_id)
         plano.resultado = {
             **plano.resultado,
@@ -609,21 +677,43 @@ def test_detalhe_plano_apresenta_rota_completa_contatos_e_alerta_destacado(clien
         Sessao.remove()
 
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
-    inicio_rota = html.index('<ol class="m-0 flex')
-    trecho_rota = html[inicio_rota : html.index("</ol>", inicio_rota)]
+    assert 'class="foto-aeronave"' in html
+    assert "Foto indisponível." in html
+    inicio_rota = html.index('aria-label="Rota completa"')
+    trecho_rota = html[inicio_rota : html.index('id="mapa"', inicio_rota)]
 
-    assert "SBJD" not in trecho_rota and "SBAU" not in trecho_rota
+    assert '<th class="titulo-rota">Etapa</th>' in trecho_rota
+    assert '<th class="titulo-rota">Aeródromo</th>' in trecho_rota
+    cabecalho = trecho_rota[trecho_rota.index("<thead>") : trecho_rota.index("</thead>")]
+    assert cabecalho.index("Chegada estimada (UTC)") < cabecalho.index(
+        "Partida estimada (UTC)"
+    )
+    assert cabecalho.index("Partida estimada (UTC)") < cabecalho.index(
+        "Pôr do sol (UTC)"
+    )
+    assert '<th class="titulo-rota">Latitude (graus)</th>' in trecho_rota
+    assert '<th class="titulo-rota">Longitude (graus)</th>' in trecho_rota
+    assert '<th class="titulo-rota">Elevação (m)</th>' in trecho_rota
     assert "Aeroporto de Jundiaí" in trecho_rota
     assert "Aeroporto de Araçatuba" in trecho_rota
     assert trecho_rota.index("Aeroporto de Jundiaí") < trecho_rota.index(
         "Aeroporto de Araçatuba"
     )
-    assert "operacoes@jundiai.example" in html
-    assert "(11) 99999-1234" in html
+    assert "SBJD" in trecho_rota and "SBAU" in trecho_rota
+    assert re.search(r"-?\d+\.\d{4}", trecho_rota)
+    assert not re.search(r"-?\d+\.\d{5,}", trecho_rota)
+    assert "Aeródromos de origem e destino" not in html
+    assert "operacoes@jundiai.example" not in html
+    assert "(11) 99999-1234" not in html
+    assert "(18) 99999-9999" not in html
+    assert "contato@aracatuba.example" not in html
     assert "Indisponível" in html
     assert "Excesso de peso: limite de planejamento excedido." in html
     assert 'role="alert"' in html
     assert "text-[#B42318]" in html
+    assert 'id="dialogo-fontes"' not in html
+    assert "Informações sobre fontes" not in html
+    assert "Fontes e dados do relatório" not in html
     assert html.index("IMPRIMIR VOO") < html.index('role="tablist"')
     assert "Como ler este plano" not in html
     assert "Imprimir PDF" not in html
@@ -648,13 +738,15 @@ def test_plano_com_varios_trechos_apresenta_fichas_e_remove_checklist_da_tela(cl
     assert f"/planos/{plano_id}/pdf" in html
 
 
-def test_mapa_recebe_somente_os_pontos_de_cada_trecho_e_exibe_wac_indisponivel(cliente):
+def test_mapa_recebe_somente_os_pontos_de_cada_trecho_sem_mensagens_redundantes(cliente):
     cadastrar(cliente)
     criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
     plano_id = criado.get_json()["id"]
     adicionar_trecho_de_retorno(plano_id)
     db = Sessao()
     try:
+        db.get(PlanoDeVoo, plano_id).carta = {"estado": "indisponivel"}
+        db.commit()
         aerodromos = {
             aero.icao: [aero.lat, aero.lon]
             for aero in db.query(Aerodromo).filter(Aerodromo.icao.in_(("SBJD", "SBAU"))).all()
@@ -716,22 +808,178 @@ def test_mapa_recebe_somente_os_pontos_de_cada_trecho_e_exibe_wac_indisponivel(c
             "pontos": [aerodromos["SBAU"], aerodromos["SBJD"]],
         },
     ]
-    assert "Carta WAC indisponível" in html
+    assert html.count('id="wac-toggle"') == 1
+    assert 'id="wac-toggle" type="button" disabled aria-label="Carta WAC, indisponível"' in html
+    assert "Carta WAC indisponível" not in html
+    assert 'id="dialogo-wac"' not in html
     assert html.count('id="mapa"') == 1
-    assert html.count('L.map(elementoMapa, {zoomControl: false})') == 1
+    assert html.count('L.map(elementoMapa, {zoomControl: false, scrollWheelZoom: false})') == 1
+    assert 'mapa.scrollWheelZoom.enable()' in html
     assert 'L.control.zoom({position: "bottomleft"}).addTo(mapa)' in html
-    assert 'ficha-trecho-ativada' in html
-    assert "linha.setLatLngs(trecho.pontos)" in html
+    assert "linha.setLatLngs(segmentos)" in html
+    assert 'className: "rotulo-trecho ' in html
+    assert 'return "Trecho " + trecho.ordem + " " + trecho.origem + " → " + trecho.destino;' in html
     assert "Mapa indisponível: coordenadas do trecho não encontradas." in html
-    assert "mapa.fitBounds(L.latLngBounds(trecho.pontos)" in html
-    assert 'ruasButton.addEventListener("click"' in html
+    assert "mapa.fitBounds(L.latLngBounds(limites)" in html
+    assert "Rota completa exibida." in html
     assert 'radarToggle.addEventListener("click"' in html
-    assert 'id="radar-toggle" type="button" aria-pressed="false"' in html
+    assert 'id="radar-toggle" type="button" aria-label="Radar de chuva" aria-pressed="false"' in html
+    assert 'id="satelite-toggle" type="button" aria-label="Imagem de satélite REDEMET" aria-pressed="false"' in html
+    assert 'id="estado-satelite" role="status" aria-live="polite"' in html
+    assert 'id="toggle-ruas"' not in html
+    assert 'id="toggle-google"' not in html
+    assert 'id="toggle-openaip"' not in html
+    assert 'id="rainviewer-toggle"' not in html
     assert 'mapa.createPane("radarPane")' in html
     assert 'pane: "radarPane"' in html
 
 
-def test_mapa_disponibiliza_openaip_com_atribuicao_e_estado_explicito(cliente, monkeypatch):
+def test_mapa_exibe_um_unico_controle_de_radar_e_wac_pdf_validada(cliente):
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+    db = Sessao()
+    try:
+        db.get(PlanoDeVoo, plano_id).carta = {
+            "estado": "disponivel",
+            "tipo": "pdf",
+            "documentos": [
+                {
+                    "indice": "3182",
+                    "nome": "WAC 3182",
+                    "icao": "SBJD",
+                    "url": "https://aisweb.example/3182.pdf",
+                }
+            ],
+        }
+        db.commit()
+    finally:
+        Sessao.remove()
+
+    html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
+
+    assert html.count('id="radar-toggle"') == 1
+    assert 'aria-label="Radar de chuva"' in html
+    assert "Carta WAC" in html
+    assert 'href="https://aisweb.example/3182.pdf"' in html
+    assert html.count('id="wac-toggle"') == 1
+    assert "document.body.appendChild(dialogoWac)" in html
+    assert "dialogoWac.showModal()" in html
+    assert 'id="toggle-ruas"' not in html
+    assert 'id="toggle-google"' not in html
+    assert 'id="toggle-openaip"' not in html
+    assert 'id="rainviewer-toggle"' not in html
+    assert "Google Maps" not in html
+    assert "OpenAIP" not in html
+
+
+def test_resolvedor_radar_prioriza_rainviewer_e_usa_redemet_se_indisponivel(
+    cliente, monkeypatch
+):
+    redemet = {
+        "estado": "disponivel",
+        "url": "https://radar.example/frame.png",
+        "hora": "2026-12-01T12:00:00+00:00",
+        "lat_min": -25.0,
+        "lat_max": -20.0,
+        "lon_min": -52.0,
+        "lon_max": -45.0,
+        "fonte": "REDEMET MaxCappi",
+    }
+    monkeypatch.setattr(tempo_mod, "radar", lambda *args: redemet)
+    monkeypatch.setattr(
+        rainviewer,
+        "buscar_frame",
+        lambda: {"frame": "frame-1", "hora": 1796126400, "max_zoom": 7},
+    )
+
+    sem_sessao = cliente.get("/planos/1/camadas/radar", headers=JSON)
+    assert sem_sessao.status_code == 401
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+
+    prioridade = cliente.get(
+        f"/planos/{plano_id}/camadas/radar",
+        headers=JSON,
+    )
+    assert prioridade.status_code == 200
+    assert prioridade.get_json()["provedor"] == "RainViewer"
+    assert "{z}/{x}/{y}.png" in prioridade.get_json()["radar_url"]
+    assert prioridade.get_json()["hora_frame"] == "2026-12-01T12:00:00+00:00"
+    assert prioridade.get_json()["atribuicao"]["url"] == "https://www.rainviewer.com/"
+    assert prioridade.get_json()["aviso_cobertura"]
+    assert prioridade.get_json()["fonte_relatorio"]["campo"] == "Radar de chuva"
+    assert prioridade.get_json()["fonte_relatorio"]["publicador"] == "RainViewer"
+    assert redemet["url"] not in prioridade.get_data(as_text=True)
+
+    reserva = cliente.get(
+        f"/planos/{plano_id}/camadas/radar?exclude=RainViewer",
+        headers=JSON,
+    )
+    assert reserva.status_code == 200
+    assert reserva.get_json()["provedor"] == "REDEMET"
+    assert reserva.get_json()["radar_url"] == redemet["url"]
+    assert reserva.get_json()["fonte_relatorio"]["publicador"] == "REDEMET"
+
+    invalido = cliente.get(
+        f"/planos/{plano_id}/camadas/radar?exclude=Google",
+        headers=JSON,
+    )
+    assert invalido.status_code == 400
+
+    cadastrar(cliente, identificacao="bia")
+    negado = cliente.get(
+        f"/planos/{plano_id}/camadas/radar",
+        headers=JSON,
+    )
+    assert negado.status_code == 404
+
+
+def test_resolvedor_satelite_exige_sessao_propriedade_e_nao_expoe_chave(
+    cliente, monkeypatch
+):
+    manifesto = {
+        "estado": "disponivel",
+        "url": "https://estatico-redemet.decea.mil.br/satelite/frame.png",
+        "hora": "2026-11-27 22:40:00",
+        "lat_min": -56.0,
+        "lat_max": 12.52,
+        "lon_min": -100.0,
+        "lon_max": -25.24,
+        "fonte": "REDEMET Satélite realçada",
+    }
+    monkeypatch.setenv("REDEMET_API_KEY", "chave-privada-de-teste")
+    monkeypatch.setattr(tempo_mod, "satelite", lambda *args: manifesto, raising=False)
+
+    sem_sessao = cliente.get("/planos/1/camadas/satelite", headers=JSON)
+    assert sem_sessao.status_code == 401
+
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+    resposta = cliente.get(
+        f"/planos/{plano_id}/camadas/satelite",
+        headers=JSON,
+    )
+
+    assert resposta.status_code == 200
+    corpo = resposta.get_json()
+    assert corpo["estado"] == "disponivel"
+    assert corpo["provedor"] == "REDEMET"
+    assert corpo["imagem_url"] == manifesto["url"]
+    assert corpo["hora_frame"] == manifesto["hora"]
+    assert "chave-privada-de-teste" not in resposta.get_data(as_text=True)
+
+    cadastrar(cliente, identificacao="bia")
+    negado = cliente.get(
+        f"/planos/{plano_id}/camadas/satelite",
+        headers=JSON,
+    )
+    assert negado.status_code == 404
+
+
+def test_controles_do_mapa_nao_expoem_openaip(cliente, monkeypatch):
     monkeypatch.setenv("OPENAIP_API_KEY", "fake-private-key")
     cadastrar(cliente)
     criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
@@ -739,10 +987,12 @@ def test_mapa_disponibiliza_openaip_com_atribuicao_e_estado_explicito(cliente, m
 
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
 
-    assert "Mapa de ruas" in html
-    assert "OpenAIP — dados aeronáuticos comunitários; não é carta WAC nem fonte oficial" in html
-    assert 'href="https://www.openaip.net"' in html
-    assert "REDEMET — oficial" in html
+    assert html.count('id="radar-toggle"') == 1
+    assert 'id="rainviewer-toggle"' not in html
+    assert 'id="toggle-openaip"' not in html
+    assert "OpenAIP" not in html
+    assert "Google Maps" not in html
+    assert "Mapa de ruas" not in html
     assert "fake-private-key" not in html
 
 
@@ -764,24 +1014,35 @@ def test_fichas_mostram_metar_e_taf_dos_aerodromos_do_trecho(cliente, monkeypatc
                     "fonte": "Aviation Weather Center",
                     "metar": {
                         "icao": "SBJD",
-                        "raw": "METAR SBJD 011200Z 18010KT 6SM",
+                        "raw": "METAR SBJD 011200Z 18010KT 6SM -RA BKN020",
                         "hora": "2026-12-01T12:00:00Z",
                         "temp_c": 18,
+                        "fenomenos": "-RA",
                         "vento_kt": 10,
                         "unidade_vento": "kt",
                         "fonte": "Aviation Weather Center",
                     },
-                    "taf": {"raw": "TAF SBJD 011100Z 18008KT"},
+                    "taf": {
+                        "raw": "TAF SBJD 011100Z 0112/0200 18008KT 9999 -RA BKN030",
+                        "fonte": "REDEMET",
+                        "hora": "2026-12-01 11:10:00",
+                        "validade_inicial": "2026-12-01 12:00:00",
+                        "validade_final": "2026-12-02 00:00:00",
+                    },
                 },
                 "SBAU": {
                     "estado": "disponivel",
                     "fonte": "Aviation Weather Center",
                     "metar": {
-                        "icao": "SBAU",
-                        "raw": "METAR SBAU 011200Z VRB05KT -RA",
+                        "icao": "SBST",
+                        "nome_estacao": "Estação regional de teste",
+                        "raw": "METAR SBST 011200Z VRB05KT -RA",
                         "hora": "2026-12-01T12:00:00Z",
                         "direcao_vento": "VRB",
                         "fenomenos": "-RA",
+                        "regional": True,
+                        "aerodromo_referencia": "SBAU",
+                        "distancia_nm": 32.4,
                         "fonte": "Aviation Weather Center",
                     },
                     "taf": {"estado": "indisponivel"},
@@ -812,23 +1073,39 @@ def test_fichas_mostram_metar_e_taf_dos_aerodromos_do_trecho(cliente, monkeypatc
     assert primeira_ficha and segunda_ficha
     primeira = primeira_ficha.group(1)
     segunda = segunda_ficha.group(1)
-    assert "METAR SBJD 011200Z 18010KT 6SM" in primeira
-    assert "METAR SBAU 011200Z VRB05KT -RA" in primeira
-    assert "TAF SBJD 011100Z 18008KT" in primeira
+    assert "METAR SBJD 011200Z 18010KT 6SM -RA BKN020" in primeira
+    assert "METAR SBST 011200Z VRB05KT -RA" in primeira
+    assert "METAR regional" in primeira
+    assert "Estação regional de teste" in primeira
+    assert "32.4 NM" in primeira
+    assert "SBAU" in primeira
+    assert "TAF SBJD 011100Z 0112/0200 18008KT 9999 -RA BKN030" in primeira
     assert "TAF da chegada indisponível" in primeira
     assert "Temperatura" in primeira and "18" in primeira and "°C" in primeira
     assert "Ponto de orvalho" in primeira and "Indisponível" in primeira
     assert "Direção do vento" in primeira and "VRB" in primeira
     assert "Fenômenos meteorológicos (código AWC)" in primeira and "-RA" in primeira
-    assert "Aviation Weather Center" in primeira
+    assert "Chuva fraca" in primeira
+    assert "Chuva fraca" in primeira.split("Leitura do TAF", 1)[1]
+    assert "Aviation Weather Center" not in primeira
     assert "2026-12-01T12:00:00Z" in primeira
-    assert primeira.index("METAR da saída") < primeira.index("METAR da chegada")
-    assert primeira.index("METAR da chegada") < primeira.index("TAF da saída")
-    assert primeira.index("TAF da chegada") < primeira.index('id="mapa"')
+    assert primeira.index("Partida —") < primeira.index("METAR da saída")
+    assert primeira.index("METAR da saída") < primeira.index("TAF da saída")
+    assert primeira.index("TAF da saída") < primeira.index("Chegada —")
+    assert primeira.index("Chegada —") < primeira.index("METAR da chegada")
+    assert primeira.index("METAR da chegada") < primeira.index("TAF da chegada")
+    assert "sm:grid-cols-2" not in primeira
+    assert 'id="mapa"' not in primeira
+    assert html.index('aria-label="Rota completa"') < html.index('id="mapa"')
+    assert html.index('id="mapa"') < html.index('role="tablist"')
     assert "sequence-line" not in primeira
-    assert "METAR SBAU 011200Z VRB05KT -RA" in segunda
+    assert "METAR SBST 011200Z VRB05KT -RA" in segunda
     assert "METAR SBJD 011200Z 18010KT 6SM" in segunda
-    assert "TAF SBJD 011100Z 18008KT" in segunda
+    assert "TAF SBJD 011100Z 0112/0200 18008KT 9999 -RA BKN030" in segunda
+    assert '<pre id="metar-original-' in primeira
+    assert '<pre id="taf-original-' in primeira
+    assert "Leitura do METAR" in primeira
+    assert "Leitura do TAF" in primeira
 
 
 def test_controles_do_mapa_sao_compactos_e_nao_exibem_estados_redundantes(
@@ -842,17 +1119,19 @@ def test_controles_do_mapa_sao_compactos_e_nao_exibem_estados_redundantes(
 
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
 
-    assert 'id="toggle-ruas" type="button" aria-pressed="true"' in html
-    assert 'id="toggle-google" type="button" disabled' in html
-    assert 'id="radar-toggle" type="button" aria-pressed="false"' in html
-    assert 'id="rainviewer-toggle" type="button" aria-pressed="false"' in html
+    assert 'id="radar-toggle" type="button" aria-label="Radar de chuva" aria-pressed="false"' in html
+    assert html.count('id="radar-toggle"') == 1
+    assert 'id="toggle-ruas"' not in html
+    assert 'id="toggle-google"' not in html
+    assert 'id="toggle-openaip"' not in html
+    assert 'id="rainviewer-toggle"' not in html
     assert "OpenAIP indisponível: chave de serviço não configurada." not in html
     assert "OpenAIP disponível" not in html
     assert "Radar de chuva desativado." not in html
     assert "Radar de chuva desativado" not in html
-    assert "Carta WAC indisponível" in html
-    assert "Chave REDEMET não configurada." in html
-    assert "Mapa de ruas" in html
+    assert "Carta WAC indisponível" not in html
+    assert "Chave REDEMET não configurada." not in html
+    assert "Mapa de ruas; não substitui" not in html
 
 
 def test_pagina_plano_omite_tabela_de_procedencia(cliente):
@@ -864,7 +1143,7 @@ def test_pagina_plano_omite_tabela_de_procedencia(cliente):
     assert "<h2>Fontes técnicas da aeronave</h2>" not in html
 
 
-def test_plano_antigo_mostra_motivo_da_indisponibilidade_do_radar(cliente, monkeypatch):
+def test_plano_antigo_nao_mostra_detalhe_de_configuracao_do_radar(cliente, monkeypatch):
     monkeypatch.delenv("REDEMET_API_KEY", raising=False)
     cadastrar(cliente)
     criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
@@ -878,13 +1157,12 @@ def test_plano_antigo_mostra_motivo_da_indisponibilidade_do_radar(cliente, monke
         Sessao.remove()
 
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
-    estado = re.search(r'<p[^>]*id="estado-radar"[^>]*>(.*?)</p>', html, re.S)
+    assert "Chave REDEMET não configurada." not in html
+    assert 'id="informacao-radar" hidden' in html
+    assert 'id="estado-radar" role="status" aria-live="polite"' in html
 
-    assert estado
-    assert estado.group(1).strip() == "Chave REDEMET não configurada."
 
-
-def test_rainviewer_nao_e_consultado_ao_abrir_o_plano(cliente, monkeypatch):
+def test_provedor_radar_nao_e_consultado_ao_abrir_o_plano(cliente, monkeypatch):
     chamadas = []
     monkeypatch.setattr(
         rainviewer,
@@ -898,12 +1176,9 @@ def test_rainviewer_nao_e_consultado_ao_abrir_o_plano(cliente, monkeypatch):
     html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
 
     assert chamadas == []
-    assert re.search(
-        r'<button\b(?=[^>]*id="rainviewer-toggle")(?=[^>]*type="button")[^>]*>',
-        html,
-    )
-    assert "RainViewer — não oficial" in html
-    assert 'href="https://www.rainviewer.com/"' in html
+    assert html.count('id="radar-toggle"') == 1
+    assert 'id="rainviewer-toggle"' not in html
+    assert "RainViewer — não oficial" not in html
 
 
 def test_rotas_rainviewer_exigem_sessao_e_propriedade_do_plano(cliente, monkeypatch):
@@ -1067,11 +1342,11 @@ def test_detalhe_atualiza_meteorologia_html_e_json_sem_persistir(cliente, monkey
     assert resposta_json.status_code == 200
     assert "METAR SBJD 011200Z 18010KT" in html
     assert "METAR SBJD OLD" not in html
-    assert "https://example.test/current.png" in html
+    assert "https://example.test/current.png" not in html
     assert corpo["meteorologia"] == meteorologia_atual
-    assert corpo["radar"] == radar_atual
+    assert corpo["radar"] == {"estado": "indisponivel"}
     assert len(chamadas_meteorologia) == 2
-    assert len(chamadas_radar) == 2
+    assert len(chamadas_radar) == 0
 
     db = Sessao()
     try:
@@ -1137,3 +1412,143 @@ def test_checklist_nao_aparece_na_tela_do_plano(cliente):
     assert "Marcar" not in html
     detalhe = cliente.get(f"/planos/{plano_id}", headers=JSON).get_json()
     assert next(item for item in detalhe["checklist"] if item["id"] == item_id)["marcado"]
+
+
+def test_programacao_por_trecho_mostra_horarios_solares_e_pernoite(cliente):
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+    adicionar_trecho_de_retorno(plano_id)
+    db = Sessao()
+    try:
+        plano = db.get(PlanoDeVoo, plano_id)
+        plano.resultado = {
+            **plano.resultado,
+            "programacao": {
+                "estado": "disponivel",
+                "fuso": "UTC",
+                "trechos": [
+                    {
+                        "ordem": 1,
+                        "estado": "disponivel",
+                        "etd": "2026-12-01T10:00:00+00:00",
+                        "eta": "2026-12-01T11:00:00+00:00",
+                        "origem": {
+                            "icao": "SBJD",
+                            "nascer_do_sol": "2026-12-01T09:00:00+00:00",
+                            "por_do_sol": "2026-12-01T22:00:00+00:00",
+                        },
+                        "destino": {
+                            "icao": "SBAU",
+                            "nascer_do_sol": "2026-12-01T08:30:00+00:00",
+                            "por_do_sol": "2026-12-01T22:30:00+00:00",
+                        },
+                        "pernoite": None,
+                        "fonte": "AISWEB sol",
+                    },
+                    {
+                        "ordem": 2,
+                        "estado": "disponivel",
+                        "etd": "2026-12-02T06:00:00+00:00",
+                        "eta": "2026-12-02T07:00:00+00:00",
+                        "origem": {
+                            "icao": "SBAU",
+                            "nascer_do_sol": "2026-12-02T06:00:00+00:00",
+                            "por_do_sol": "2026-12-02T22:30:00+00:00",
+                        },
+                        "destino": {
+                            "icao": "SBJD",
+                            "nascer_do_sol": "2026-12-02T09:00:00+00:00",
+                            "por_do_sol": "2026-12-02T22:00:00+00:00",
+                        },
+                        "pernoite": {"icao": "SBAU", "data": "2026-12-01"},
+                        "fonte": "AISWEB sol",
+                    },
+                ],
+            },
+        }
+        db.commit()
+    finally:
+        Sessao.remove()
+
+    html = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
+    primeira = re.search(
+        r'<article[^>]*id="ficha-trecho-1"[^>]*>(.*?)</article>', html, re.S
+    )
+    segunda = re.search(
+        r'<article[^>]*id="ficha-trecho-2"[^>]*>(.*?)</article>', html, re.S
+    )
+
+    assert primeira and segunda
+    assert "Horário estimado de partida" in primeira.group(1)
+    assert ">km<" in primeira.group(1)
+    assert "Reserva de combustível" in primeira.group(1)
+    assert "Peso do combustível" in primeira.group(1)
+    assert "Peso da aeronave" in primeira.group(1)
+    assert "Velocidade de planejamento" in primeira.group(1)
+    assert "Horário estimado de chegada" in primeira.group(1)
+    assert "01/12/2026 10:00 UTC" in primeira.group(1)
+    assert "01/12/2026 11:00 UTC" in primeira.group(1)
+    assert "Pôr do sol" in primeira.group(1)
+    assert "Programação diurna" not in primeira.group(1)
+    assert "Programação diurna" not in segunda.group(1)
+    assert "02/12/2026 06:00 UTC" in segunda.group(1)
+    rota = html[html.index('aria-label="Rota completa"') : html.index('id="mapa"')]
+    assert "01/12 10:00" in rota
+    assert "01/12 11:00" in rota
+    assert "02/12 06:00" in rota
+    assert "02/12 07:00" in rota
+    assert "01/12/2026 10:00" not in rota
+    assert "02/12/2026 07:00" not in rota
+    assert " UTC" not in rota
+    assert "Pôr do sol (UTC)" in rota
+    assert "01/12 22:00" in rota
+    assert "02/12 22:30" in rota
+    assert "02/12 22:00" in rota
+    assert "01/12/2026 22:00" not in rota
+    assert "02/12/2026 22:30" not in rota
+    assert "Pernoite em SBAU em 01/12/2026. A partida fica no nascer do sol do dia seguinte." in rota
+    assert "SBAU" in segunda.group(1)
+
+
+def test_plano_legacy_e_agenda_indisponivel_nao_inventam_horarios(cliente):
+    cadastrar(cliente)
+    criado = cliente.post("/planos", json=plano_valido(), headers=JSON)
+    plano_id = criado.get_json()["id"]
+    db = Sessao()
+    try:
+        plano = db.get(PlanoDeVoo, plano_id)
+        resultado = dict(plano.resultado)
+        resultado.pop("programacao", None)
+        plano.resultado = resultado
+        db.commit()
+    finally:
+        Sessao.remove()
+
+    legacy = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
+    detalhe = cliente.get(f"/planos/{plano_id}", headers=JSON).get_json()
+    assert "Programação diurna" not in legacy
+    assert detalhe["programacao"] == {
+        "estado": "nao_calculada",
+        "fuso": "UTC",
+        "trechos": [],
+    }
+
+    db = Sessao()
+    try:
+        plano = db.get(PlanoDeVoo, plano_id)
+        plano.resultado = {
+            **plano.resultado,
+            "programacao": {
+                "estado": "indisponivel",
+                "motivo": "dados_solares_indisponiveis",
+                "fuso": "UTC",
+                "trechos": [],
+            },
+        }
+        db.commit()
+    finally:
+        Sessao.remove()
+
+    indisponivel = cliente.get(f"/planos/{plano_id}").get_data(as_text=True)
+    assert "Programação diurna" not in indisponivel

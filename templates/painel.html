@@ -1,25 +1,40 @@
 {% extends "base.html" %}
 {% block titulo %}Painel{% endblock %}
 {% block corpo %}
-<section class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl bg-aviation-paper p-6 text-aviation-navy">
+<section class="leitura mx-auto my-4 w-[calc(100%-24px)] max-w-[48rem] rounded-3xl p-6">
+<div class="painel-topo">
 <h1>Seus planos</h1>
-<p><a class="text-aviation-navy" href="{{ url_for('novo_plano') }}">Novo plano</a></p>
+<a class="acao-plano" href="{{ url_for('novo_plano') }}">Novo plano</a>
+</div>
 <div class="rolagem">
-<table class="w-full border-collapse [&_td]:border-b [&_td]:border-solid [&_td]:border-[#8AA0B8] [&_td]:px-[0.6rem] [&_td]:py-[0.3rem] [&_td]:text-left [&_th]:border-b [&_th]:border-solid [&_th]:border-[#8AA0B8] [&_th]:px-[0.6rem] [&_th]:py-[0.3rem] [&_th]:text-left [&_caption]:caption-bottom [&_caption]:pt-[0.4rem] [&_caption]:text-left">
-    <thead><tr><th>Origem</th><th>Destino</th><th>Partida</th><th>Estado</th></tr></thead>
-    <tbody>
+{% if planos %}
+<ul class="plano-lista">
     {% for plano in planos %}
-        <tr>
-            <td><a class="text-aviation-navy" href="{{ url_for('ver_plano', plano_id=plano.id) }}">{{ plano.origem_icao }}</a></td>
-            <td>{{ plano.destino_icao }}</td>
-            <td>{{ plano.hora_partida.strftime("%d/%m/%Y %H:%M") }} TL</td>
-            <td>{{ rotulo_lido(plano.estado) }}</td>
-        </tr>
-    {% else %}
-        <tr><td colspan="4">Não há voo planejado.</td></tr>
+    <li class="plano-card">
+        <div class="plano-cabecalho">
+            <h2><a href="{{ url_for('ver_plano', plano_id=plano.id) }}">{{ plano.origem_icao }} → {{ plano.destino_icao }}</a></h2>
+            <p class="plano-partida">Partida {{ plano.hora_partida.strftime("%d/%m/%Y %H:%M") }} TL</p>
+            <div class="plano-acoes">
+                <a class="icone-plano" href="{{ url_for('alterar_plano', plano_id=plano.id) }}" aria-label="Editar plano {{ plano.origem_icao }} {{ plano.destino_icao }}">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path stroke-linecap="round" d="m13.5 6.5 3 3"/></svg>
+                </a>
+                <details>
+                    <summary class="icone-plano" aria-label="Apagar plano {{ plano.origem_icao }} {{ plano.destino_icao }}">
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M5 7h14M9 7V5h6v2M8 7l.7 12h6.6L16 7"/></svg>
+                    </summary>
+                    <form method="post" action="{{ url_for('apagar_plano_formulario', plano_id=plano.id) }}">
+                        <p>Apagar o plano {{ plano.origem_icao }} → {{ plano.destino_icao }}? Esta exclusão não pode ser desfeita.</p>
+                        <button name="confirmar" value="on" type="submit">Confirmar exclusão</button>
+                    </form>
+                </details>
+            </div>
+        </div>
+    </li>
     {% endfor %}
-    </tbody>
-</table>
+</ul>
+{% else %}
+<p>Não há voo planejado.</p>
+{% endif %}
 </div>
 </section>
 {% endblock %}
