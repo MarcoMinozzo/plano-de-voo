@@ -33,6 +33,7 @@ from servidor.planos_consulta import construir_fontes_relatorio, linha_fonte_rel
 from servidor.pdf_plano import (
     gerar_pdf,
     ler_orientacao,
+    nome_relatorio,
     rotulo_lido,
 )
 from servidor.tempo import campos_metar, campos_taf, legenda_periodo_taf, linhas_boletim
@@ -41,6 +42,7 @@ from servidor.planos import (
     completar_programacao_solar,
     do_piloto,
     coordenada_graus,
+    hora_infografico,
     hora_ja_passou,
     horario_rota,
     listar,
@@ -133,6 +135,7 @@ def criar_app():
     app.add_template_global(hora_utc_legivel)
     app.add_template_global(legenda_periodo_taf)
     app.add_template_global(horario_rota)
+    app.add_template_global(hora_infografico)
     app.add_template_global(coordenada_graus)
     app.add_template_global(imagem_da_aeronave)
     configurar(ambiente.database_url)
@@ -144,6 +147,10 @@ def criar_app():
     @app.teardown_request
     def fechar_sessao_db(_exc):
         Sessao.remove()
+
+    @app.route("/favicon.ico")
+    def favicon():
+        return app.send_static_file("casca/favicon.ico")
 
     def quer_json():
         return request.is_json or request.headers.get("Accept") == "application/json"
@@ -909,6 +916,7 @@ def criar_app():
         fontes_relatorio = construir_fontes_relatorio(
             plano, aerodromos_rota, plano.meteorologia
         )
+        nome = nome_relatorio(plano)
         return (
             gerar_pdf(
                 plano,
@@ -917,7 +925,10 @@ def criar_app():
                 fontes_relatorio,
             ),
             200,
-            {"Content-Type": "application/pdf"},
+            {
+                "Content-Type": "application/pdf",
+                "Content-Disposition": f'inline; filename="{nome}.pdf"',
+            },
         )
 
     @app.get("/aerodromos")

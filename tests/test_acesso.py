@@ -281,7 +281,7 @@ def test_sair_html_encerra_sessao_e_redireciona(cliente):
     resposta = cliente.post("/sair", data={}, follow_redirects=True)
 
     assert resposta.status_code == 200
-    assert "<title>Entrar</title>" in resposta.get_data(as_text=True)
+    assert "<title>Entrar — Plano de Voo</title>" in resposta.get_data(as_text=True)
     assert cliente.get("/painel", headers=JSON).status_code == 401
 
 

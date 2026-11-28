@@ -40,20 +40,42 @@ def hora_ja_passou(valor):
         return False
 
 
-def horario_rota(valor):
-    """Dia e mês com hora UTC, sem o ano, para a tabela da rota."""
+def _instante_utc(valor):
     if not isinstance(valor, str) or not valor.strip():
-        return "Indisponível"
+        return None
     texto = valor.strip()
     if texto.endswith("Z"):
         texto = texto[:-1] + "+00:00"
     try:
         instante = datetime.fromisoformat(texto)
     except ValueError:
-        return "Indisponível"
+        return None
     if instante.tzinfo is None:
+        return None
+    return instante.astimezone(timezone.utc)
+
+
+def horario_rota(valor):
+    """Dia e mês com hora UTC, sem o ano, para a tabela da rota."""
+    instante = _instante_utc(valor)
+    if instante is None:
         return "Indisponível"
-    return instante.astimezone(timezone.utc).strftime("%d/%m %H:%M")
+    return instante.strftime("%d/%m %H:%M")
+
+
+def hora_infografico(valor, referencia=None):
+    """Hora UTC. Acrescenta +N quando o dia passa do dia da saída."""
+    instante = _instante_utc(valor)
+    if instante is None:
+        return "Indisponível"
+    texto = instante.strftime("%H:%M")
+    base = _instante_utc(referencia)
+    if base is None:
+        return texto
+    dias = (instante.date() - base.date()).days
+    if dias > 0:
+        return f"{texto}+{dias}"
+    return texto
 
 
 def coordenada_graus(valor):
@@ -61,7 +83,7 @@ def coordenada_graus(valor):
         numero = float(valor)
     except (TypeError, ValueError):
         return "Indisponível"
-    return f"{numero:.4f}"
+    return format(numero, "f").rstrip("0").rstrip(".")
 
 
 def _hora(valor):

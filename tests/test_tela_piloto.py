@@ -685,14 +685,11 @@ def test_detalhe_plano_apresenta_rota_completa_contatos_e_alerta_destacado(clien
     assert '<th class="titulo-rota">Etapa</th>' in trecho_rota
     assert '<th class="titulo-rota">Aeródromo</th>' in trecho_rota
     cabecalho = trecho_rota[trecho_rota.index("<thead>") : trecho_rota.index("</thead>")]
-    assert cabecalho.index("Chegada estimada (UTC)") < cabecalho.index(
-        "Partida estimada (UTC)"
-    )
-    assert cabecalho.index("Partida estimada (UTC)") < cabecalho.index(
-        "Pôr do sol (UTC)"
-    )
-    assert '<th class="titulo-rota">Latitude (graus)</th>' in trecho_rota
-    assert '<th class="titulo-rota">Longitude (graus)</th>' in trecho_rota
+    assert cabecalho.index("Chegada estimada") < cabecalho.index("Partida estimada")
+    assert cabecalho.index("Partida estimada") < cabecalho.index("Pôr do sol")
+    assert "(UTC)" not in cabecalho
+    assert '<th class="titulo-rota">Latitude (°)</th>' in trecho_rota
+    assert '<th class="titulo-rota">Longitude (°)</th>' in trecho_rota
     assert '<th class="titulo-rota">Elevação (m)</th>' in trecho_rota
     assert "Aeroporto de Jundiaí" in trecho_rota
     assert "Aeroporto de Araçatuba" in trecho_rota
@@ -700,8 +697,9 @@ def test_detalhe_plano_apresenta_rota_completa_contatos_e_alerta_destacado(clien
         "Aeroporto de Araçatuba"
     )
     assert "SBJD" in trecho_rota and "SBAU" in trecho_rota
-    assert re.search(r"-?\d+\.\d{4}", trecho_rota)
-    assert not re.search(r"-?\d+\.\d{5,}", trecho_rota)
+    assert "-23.18167" in trecho_rota
+    assert "-23.18167°" not in trecho_rota
+    assert "Todos os tempos em UTC — Tempo Universal Coordenado." in trecho_rota
     assert "Aeródromos de origem e destino" not in html
     assert "operacoes@jundiai.example" not in html
     assert "(11) 99999-1234" not in html
@@ -1493,6 +1491,11 @@ def test_programacao_por_trecho_mostra_horarios_solares_e_pernoite(cliente):
     assert "Programação diurna" not in primeira.group(1)
     assert "Programação diurna" not in segunda.group(1)
     assert "02/12/2026 06:00 UTC" in segunda.group(1)
+    info = html[html.index('class="infografico-rota"') : html.index('aria-label="Rota completa"')]
+    assert "Escala" not in info
+    assert ">10:00<" in info
+    assert ">11:00<" in info
+    assert ">07:00+1<" in info
     rota = html[html.index('aria-label="Rota completa"') : html.index('id="mapa"')]
     assert "01/12 10:00" in rota
     assert "01/12 11:00" in rota
@@ -1500,8 +1503,8 @@ def test_programacao_por_trecho_mostra_horarios_solares_e_pernoite(cliente):
     assert "02/12 07:00" in rota
     assert "01/12/2026 10:00" not in rota
     assert "02/12/2026 07:00" not in rota
-    assert " UTC" not in rota
-    assert "Pôr do sol (UTC)" in rota
+    assert "Pôr do sol (UTC)" not in rota
+    assert "Todos os tempos em UTC — Tempo Universal Coordenado." in rota
     assert "01/12 22:00" in rota
     assert "02/12 22:30" in rota
     assert "02/12 22:00" in rota

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block titulo %}{% if action %}Alterar plano{% else %}Novo plano{% endif %}{% endblock %}
+{% block titulo %}{% if action %}Alterar plano{% else %}Novo plano{% endif %} — Plano de Voo{% endblock %}
 {% block corpo %}
 {% set info = informado or {} %}
 {% set origem_padrao = info.origem or (aerodromos[0].icao if aerodromos else "") %}

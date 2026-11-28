@@ -1,10 +1,13 @@
 {% extends "base.html" %}
-{% block titulo %}{{ plano.origem_icao }} → {{ plano.destino_icao }}{% endblock %}
+{% block titulo %}{{ plano.origem_icao }} → {{ plano.destino_icao }} — Plano de Voo{% endblock %}
 {% block corpo %}
 <div class="vidro mx-auto my-4 w-[calc(100%-24px)] rounded-3xl bg-aviation-glass p-4 text-aviation-white md:w-[90%] md:p-6" id="pagina-plano">
 <header id="resumo">
     <div class="flex flex-wrap items-center justify-between gap-2">
-        <h1 class="m-0">{{ plano.origem_icao }} → {{ plano.destino_icao }}</h1>
+        <div class="secao-relatorio secao-capa">
+            <p class="secao-etiqueta">Relatório de voo</p>
+            <h1 class="m-0">{{ plano.origem_icao }} → {{ plano.destino_icao }}</h1>
+        </div>
         <div class="acoes-plano">
             <a class="botao-voo inline-flex min-h-11 items-center rounded-2xl px-4 font-[inherit] no-underline" href="{{ url_for('pdf', plano_id=plano.id) }}">IMPRIMIR VOO</a>
             <form method="post" action="{{ url_for('atualizar_plano', plano_id=plano.id) }}" data-recalcular>
@@ -61,26 +64,24 @@
     {% if plano.trechos %}
     {% set programacao_resumo = plano.resultado.get("programacao") or {} %}
     {% set agendas_resumo = programacao_resumo.get("trechos", []) if programacao_resumo is mapping else [] %}
+    {% set agenda_base = agendas_resumo | selectattr("ordem", "equalto", plano.trechos[0].ordem) | list | first %}
+    {% set dia_base = agenda_base.get("etd") if agenda_base else none %}
     <div class="infografico-rota">
         <ol class="trilha-voo" aria-label="Saída, escalas e chegada">
             {% for trecho in plano.trechos %}
             {% set agenda = agendas_resumo | selectattr("ordem", "equalto", trecho.ordem) | list | first %}
             {% if loop.first %}
-            {% set hora_saida = horario_rota(agenda.get("etd") if agenda else none) %}
             <li class="ponto-voo ponto-saida">
                 <div class="nodo-voo"><span class="marca-voo">{{ trecho.origem_icao }}</span></div>
-                <p class="hora-voo">{{ hora_saida.split(" ")[-1] if " " in hora_saida else hora_saida }}</p>
+                <p class="hora-voo">{{ hora_infografico(agenda.get("etd") if agenda else none, dia_base) }}</p>
                 <p class="papel-voo">Saída</p>
             </li>
             {% endif %}
             <li class="ponto-voo {{ 'ponto-chegada' if loop.last else 'ponto-escala' }}">
                 <div class="nodo-voo"><span class="marca-voo">{{ trecho.destino_icao }}</span></div>
+                <p class="hora-voo">{{ hora_infografico(agenda.get("eta") if agenda else none, dia_base) }}</p>
                 {% if loop.last %}
-                {% set hora_chegada = horario_rota(agenda.get("eta") if agenda else none) %}
-                <p class="hora-voo">{{ hora_chegada.split(" ")[-1] if " " in hora_chegada else hora_chegada }}</p>
                 <p class="papel-voo">Chegada</p>
-                {% else %}
-                <p class="papel-voo">Escala</p>
                 {% endif %}
             </li>
             {% endfor %}
@@ -97,7 +98,11 @@
 </header>
 
 <section class="my-4" aria-label="Rota completa">
-    <h2 class="mt-0">Rota completa</h2>
+    <div class="secao-relatorio">
+        <p class="secao-etiqueta">Rota</p>
+        <h2 class="mt-0">Rota completa</h2>
+        <p class="secao-resumo">Aeródromos na ordem da viagem, com chegada, partida e posição.</p>
+    </div>
     {% if plano.trechos %}
     {% set programacao = plano.resultado.get("programacao") or {} %}
     {% set agendas = programacao.get("trechos", []) if programacao is mapping else [] %}
@@ -108,11 +113,11 @@
             <tr>
                 <th class="titulo-rota">Etapa</th>
                 <th class="titulo-rota">Aeródromo</th>
-                <th class="titulo-rota">Chegada estimada (UTC)</th>
-                <th class="titulo-rota">Partida estimada (UTC)</th>
-                <th class="titulo-rota">Pôr do sol (UTC)</th>
-                <th class="titulo-rota">Latitude (graus)</th>
-                <th class="titulo-rota">Longitude (graus)</th>
+                <th class="titulo-rota">Chegada estimada</th>
+                <th class="titulo-rota">Partida estimada</th>
+                <th class="titulo-rota">Pôr do sol</th>
+                <th class="titulo-rota">Latitude (°)</th>
+                <th class="titulo-rota">Longitude (°)</th>
                 <th class="titulo-rota">Elevação (m)</th>
             </tr>
         </thead>
@@ -152,7 +157,6 @@
     </table>
     </div>
     {% set pernoites = agendas | selectattr("pernoite") | list %}
-    {% if (plano.trechos|length > 1 and plano.hipotese_reabastecimento) or pernoites %}
     <div class="observacoes-rota">
         <p>Observações</p>
         {% if plano.trechos|length > 1 and plano.hipotese_reabastecimento %}
@@ -161,8 +165,8 @@
         {% for item in pernoites %}
         <p>Pernoite em {{ item.pernoite.icao }} em {{ data_br(item.pernoite.data) }}. A partida fica no nascer do sol do dia seguinte.</p>
         {% endfor %}
+        <p>Todos os tempos em UTC — Tempo Universal Coordenado.</p>
     </div>
-    {% endif %}
     </div>
     {% else %}
     <p class="mb-0">Rota indisponível.</p>
@@ -223,11 +227,15 @@
 
 {% if plano.resultado.linhas %}
 <section class="leitura my-4 rounded-2xl bg-aviation-paper p-4 text-aviation-navy md:p-6">
-<h2>Dados do plano</h2>
+<div class="secao-relatorio">
+    <p class="secao-etiqueta">Planejamento</p>
+    <h2>Dados do plano</h2>
+    <p class="secao-resumo">Distância, tempo, combustível e peso usados neste plano.</p>
+</div>
 <div class="card-dados">
 <div class="rolagem larga">
-<table class="w-full border-collapse [&_td]:border-b [&_td]:border-solid [&_td]:border-[#8AA0B8] [&_td]:px-[0.6rem] [&_td]:py-[0.3rem] [&_td]:text-left [&_th]:border-b [&_th]:border-solid [&_th]:border-[#8AA0B8] [&_th]:px-[0.6rem] [&_th]:py-[0.3rem] [&_th]:text-left [&_caption]:caption-bottom [&_caption]:pt-[0.4rem] [&_caption]:text-left">
-    <thead><tr><th>Grandeza</th><th>Valor</th><th>Unidade</th></tr></thead>
+<table>
+    <thead><tr><th>Dado</th><th>Valor</th><th>Unidade</th></tr></thead>
     <tbody>
     {% for linha in plano.resultado.linhas %}
         <tr>
@@ -254,7 +262,11 @@
 <section class="my-4 w-full" aria-label="Fichas dos trechos">
     {% for trecho in plano.trechos %}
     <article class="leitura rounded-2xl bg-aviation-paper p-4 text-aviation-navy md:p-6" id="ficha-trecho-{{ trecho.ordem }}" role="tabpanel" aria-labelledby="aba-trecho-{{ trecho.ordem }}" tabindex="0" data-ficha-panel data-trecho-ordem="{{ trecho.ordem }}">
-        <h2>Trecho {{ trecho.ordem }} — {{ trecho.origem_icao }} → {{ trecho.destino_icao }}</h2>
+        <div class="secao-relatorio">
+            <p class="secao-etiqueta">Trecho {{ trecho.ordem }}</p>
+            <h2>{{ trecho.origem_icao }} → {{ trecho.destino_icao }}</h2>
+            <p class="secao-resumo">Origem, destino e números deste trecho.</p>
+        </div>
         {% set aerodromo_saida = aerodromos_rota.get(trecho.origem_icao) %}
         {% set aerodromo_chegada = aerodromos_rota.get(trecho.destino_icao) %}
         {% set programacao = plano.resultado.get("programacao") %}
@@ -267,7 +279,7 @@
         {% set grandeza = grandezas_por_trecho.get(trecho.ordem) if grandezas_por_trecho is defined else none %}
         <div class="card-dados">
         <div class="rolagem larga">
-            <table class="w-full border-collapse [&_td]:border-b [&_td]:border-solid [&_td]:border-[#8AA0B8] [&_td]:px-[0.6rem] [&_td]:py-[0.3rem] [&_td]:text-left [&_th]:border-b [&_th]:border-solid [&_th]:border-[#8AA0B8] [&_th]:px-[0.6rem] [&_th]:py-[0.3rem] [&_th]:text-left">
+            <table>
                 <thead><tr><th>Dado</th><th>Valor</th><th>Unidade</th></tr></thead>
                 <tbody>
                     <tr><td>Distância</td><td>{{ trecho.distancia_valor }}</td><td>{{ trecho.distancia_unidade }}</td></tr>
@@ -312,7 +324,7 @@
                 <h3>{{ rotulo }} — {{ icao }}</h3>
                 <div class="flex flex-col gap-3">
             <section class="boletim-sub" aria-label="Meteorologia da {{ papel }} {{ icao }}">
-                <h4>METAR da {{ papel }} — {{ icao }}</h4>
+                <h4 class="titulo-boletim">METAR da {{ papel }} — {{ icao }}</h4>
                 {% if boletim and boletim.metar %}
                 {% if boletim.metar.regional %}
                 <p>
@@ -324,11 +336,11 @@
                 </p>
                 {% endif %}
                 <pre id="metar-original-{{ icao }}" class="boletim-original my-3 max-w-full overflow-visible whitespace-pre-wrap rounded-xl border border-solid border-[#303030] bg-[#050505] p-4 font-mono text-[#f2f2f2]" aria-label="METAR original de {{ icao }}">{{ boletim.metar.raw or "indisponível" }}</pre>
-                <h5>Leitura do METAR</h5>
+                <h5 class="titulo-leitura">Leitura do METAR</h5>
                 <div class="card-dados">
                 <div class="rolagem larga">
-                    <table class="w-full border-collapse [&_td]:border-b [&_td]:border-solid [&_td]:border-[#8AA0B8] [&_td]:px-[0.6rem] [&_td]:py-[0.3rem] [&_td]:text-left [&_th]:border-b [&_th]:border-solid [&_th]:border-[#8AA0B8] [&_th]:px-[0.6rem] [&_th]:py-[0.3rem] [&_th]:text-left">
-                        <thead><tr><th>Campo</th><th>Valor</th><th>Unidade</th><th>Explicação</th></tr></thead>
+                    <table>
+                        <thead><tr><th>Dado</th><th>Valor</th><th>Unidade</th><th>Explicação</th></tr></thead>
                         <tbody>
                             {% for campo in boletim.campos_metar %}
                             <tr>
@@ -347,18 +359,18 @@
                 {% endif %}
             </section>
             <section class="boletim-sub" aria-label="TAF da {{ papel }} {{ icao }}">
-                <h4>TAF da {{ papel }} — {{ icao }}</h4>
+                <h4 class="titulo-boletim">TAF da {{ papel }} — {{ icao }}</h4>
                 {% if boletim and boletim.taf and boletim.taf.raw %}
                 <pre id="taf-original-{{ icao }}" class="boletim-original my-3 max-w-full overflow-visible whitespace-pre-wrap rounded-xl border border-solid border-[#303030] bg-[#050505] p-4 font-mono text-[#f2f2f2]" aria-label="TAF original de {{ icao }}">{{ boletim.taf.raw }}</pre>
-                <h5>Leitura do TAF</h5>
+                <h5 class="titulo-leitura">Leitura do TAF</h5>
                 {% if boletim.campos_taf %}
                 {% for grupo in boletim.campos_taf %}
                 <section class="my-3 rounded-xl border border-solid border-[#8AA0B8] p-3" aria-label="Grupo TAF {{ grupo.tipo }} — {{ grupo.periodo }}">
                     <h5 class="grupo-taf"><span>{{ grupo.tipo }}</span>{% if grupo.periodo %} — {{ legenda_periodo_taf(grupo.periodo) }}{% endif %}</h5>
                     <div class="card-dados">
                     <div class="rolagem larga">
-                        <table class="w-full border-collapse [&_td]:border-b [&_td]:border-solid [&_td]:border-[#8AA0B8] [&_td]:px-[0.6rem] [&_td]:py-[0.3rem] [&_td]:text-left [&_th]:border-b [&_th]:border-solid [&_th]:border-[#8AA0B8] [&_th]:px-[0.6rem] [&_th]:py-[0.3rem] [&_th]:text-left">
-                            <thead><tr><th>Campo</th><th>Valor</th><th>Unidade</th><th>Explicação</th></tr></thead>
+                        <table>
+                            <thead><tr><th>Dado</th><th>Valor</th><th>Unidade</th><th>Explicação</th></tr></thead>
                             <tbody>
                                 {% for campo in grupo.campos %}
                                 <tr>
@@ -431,7 +443,11 @@
 
 {% set vento_ok = plano.vento.estado == "disponivel" %}
 <section class="leitura my-4 rounded-2xl bg-aviation-paper p-4 text-aviation-navy md:p-6" aria-labelledby="titulo-tempo">
-<h2 id="titulo-tempo">Vento da rota</h2>
+<div class="secao-relatorio">
+    <p class="secao-etiqueta">Meteorologia</p>
+    <h2 id="titulo-tempo">Vento da rota</h2>
+    <p class="secao-resumo">Vento usado no cálculo da velocidade em relação ao solo.</p>
+</div>
 {% if not vento_ok %}
 <p>Vento de rota: indisponível.</p>
 {% else %}

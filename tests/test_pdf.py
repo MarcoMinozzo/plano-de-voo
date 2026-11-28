@@ -16,5 +16,6 @@ def test_checklist_e_pdf(cliente):
     assert marcado.get_json()["marcado"] is True
     pdf = cliente.get(f"/planos/{plano['id']}/pdf")
     assert pdf.mimetype == "application/pdf"
+    assert pdf.headers["Content-Disposition"] == 'inline; filename="SBJD-SBAU-01-12-2026.pdf"'
     assert pdf.data.startswith(b"%PDF")
     assert "autoriza".encode("utf-16-be") in pdf.data or b"autoriza" in pdf.data

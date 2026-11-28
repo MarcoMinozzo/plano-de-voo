@@ -61,6 +61,16 @@ def _estilos():
             textColor=MUTED,
             splitLongWords=1,
         ),
+        "section_bar": ParagraphStyle(
+            "PlanoSectionBar",
+            parent=base["Heading2"],
+            fontName="Helvetica-Bold",
+            fontSize=11,
+            leading=14,
+            textColor=colors.white,
+            spaceBefore=0,
+            spaceAfter=0,
+        ),
         "section": ParagraphStyle(
             "PlanoSection",
             parent=base["Heading2"],
@@ -141,6 +151,65 @@ def _paragrafo(texto, estilo):
     return Paragraph(_html(texto), estilo)
 
 
+def _estilo_grade(com_cabecalho):
+    comandos = [
+        ("GRID", (0, 0), (-1, -1), 0.4, GRID),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]
+    if com_cabecalho:
+        comandos.extend(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PAPER]),
+            ]
+        )
+    else:
+        comandos.append(("BACKGROUND", (0, 0), (-1, -1), PAPER))
+    return TableStyle(comandos)
+
+
+def _titulo_secao(texto, estilos):
+    tabela = Table(
+        [[Paragraph(_html(texto), estilos["section_bar"])]],
+        colWidths=[176 * mm],
+        hAlign="LEFT",
+    )
+    tabela.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), NAVY),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    tabela.spaceBefore = 10
+    tabela.spaceAfter = 6
+    return tabela
+
+
+def _tabela_grade(cabecalho, linhas, estilos, larguras):
+    dados = [[_paragrafo(valor, estilos["table_head"]) for valor in cabecalho]]
+    dados.extend(
+        [_paragrafo(valor, estilos["table"]) for valor in linha] for linha in linhas
+    )
+    tabela = Table(
+        dados,
+        colWidths=larguras,
+        repeatRows=1,
+        hAlign="LEFT",
+        splitByRow=1,
+    )
+    tabela.setStyle(_estilo_grade(True))
+    return tabela
+
+
 def _tabela_pares(linhas, estilos):
     dados = [
         [_paragrafo(rotulo, estilos["label"]), _paragrafo(valor, estilos["body"])]
@@ -152,24 +221,12 @@ def _tabela_pares(linhas, estilos):
         hAlign="LEFT",
         splitByRow=1,
     )
-    tabela.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, -1), PAPER),
-                ("GRID", (0, 0), (-1, -1), 0.35, GRID),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]
-        )
-    )
+    tabela.setStyle(_estilo_grade(False))
     return tabela
 
 
 def _tabela_resultados(linhas, estilos):
-    cabecalho = ("Grandeza", "Valor", "Unidade")
+    cabecalho = ("Dado", "Valor", "Unidade")
     dados = [[_paragrafo(valor, estilos["table_head"]) for valor in cabecalho]]
     for linha in linhas:
         dados.append(
@@ -186,26 +243,13 @@ def _tabela_resultados(linhas, estilos):
         hAlign="LEFT",
         splitByRow=1,
     )
-    tabela.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PAPER]),
-                ("GRID", (0, 0), (-1, -1), 0.35, GRID),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 5),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
+    tabela.setStyle(_estilo_grade(True))
     return tabela
 
 
 def _tabela_fontes(linhas, estilos):
     cabecalho = (
-        "Campo",
+        "Dado",
         "Valor",
         "Fonte / publicador",
         "Referência / data",
@@ -244,20 +288,7 @@ def _tabela_fontes(linhas, estilos):
         hAlign="LEFT",
         splitByRow=1,
     )
-    tabela.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), NAVY),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, PAPER]),
-                ("GRID", (0, 0), (-1, -1), 0.35, GRID),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
+    tabela.setStyle(_estilo_grade(True))
     return tabela
 
 
@@ -270,6 +301,15 @@ def _rota_completa(plano):
     if not rota:
         rota = [plano.origem_icao, plano.destino_icao]
     return " > ".join(rota)
+
+
+def nome_relatorio(plano):
+    hora = plano.hora_partida
+    if hora.tzinfo is None or hora.utcoffset() is None:
+        hora = hora.replace(tzinfo=timezone.utc)
+    else:
+        hora = hora.astimezone(timezone.utc)
+    return f"{plano.origem_icao}-{plano.destino_icao}-{hora.strftime('%d-%m-%Y')}"
 
 
 def _partida_rotulo(hora):
@@ -417,7 +457,7 @@ def _montar_documento(buffer, plano, nome_piloto, conteudo, estilos, rotulo_lido
         rightMargin=17 * mm,
         topMargin=20 * mm,
         bottomMargin=18 * mm,
-        title=f"Plano de voo — {rota}",
+        title=nome_relatorio(plano),
         author=nome_piloto,
         pageCompression=0,
     )

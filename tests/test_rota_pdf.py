@@ -268,13 +268,12 @@ def test_pdf_apresenta_programacao_utc_por_trecho_e_pernoite(cliente):
     resposta = cliente.get(f"/planos/{plano_id}/pdf")
 
     assert resposta.status_code == 200
-    assert any("2026-12-01T10:00:00+00:00" in texto for texto in textos)
-    assert any("2026-12-02T07:00:00+00:00" in texto for texto in textos)
-    assert any("Nascer do sol" in texto for texto in textos)
+    assert any("01/12/2026 10:00 UTC" in texto for texto in textos)
+    assert any("02/12/2026 07:00 UTC" in texto for texto in textos)
     assert any("Pôr do sol" in texto for texto in textos)
-    assert any("Pernoite" in texto for texto in textos)
+    assert any("Pernoite em S0B2 em 01/12/2026" in texto for texto in textos)
     assert any("S0B2" in texto for texto in textos)
-    assert any("01/12/2026" in texto for texto in textos)
+    assert any("Todos os tempos em UTC" in texto for texto in textos)
 
 
 def test_pdf_identifica_fonte_e_validade_do_taf_redemet(cliente, monkeypatch):

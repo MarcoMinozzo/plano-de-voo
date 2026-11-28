@@ -22,7 +22,14 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block titulo %}Plano de voo{% endblock %}</title>
+    <title>{% block titulo %}Plano de Voo{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='casca/favicon.ico') }}" sizes="32x32">
+    <link rel="icon" href="{{ url_for('static', filename='casca/favicon-32.png') }}" type="image/png" sizes="32x32">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='casca/apple-touch-icon.png') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='casca/site.webmanifest') }}">
+    <meta name="application-name" content="Plano de Voo">
+    <meta name="apple-mobile-web-app-title" content="Plano de Voo">
+    <meta name="theme-color" content="#001030">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tailwind.css') }}">
 </head>
 <body class="m-0 min-h-screen bg-aviation-navy bg-center bg-cover bg-fixed font-sans leading-[1.45] text-aviation-navy before:pointer-events-none before:fixed before:inset-0 before:bg-aviation-overlay before:content-[''] max-md:overflow-x-hidden"
